@@ -1,4 +1,5 @@
 #! /bin/bash
+rm *.txt
 g++ gen.cpp
 ./a.out
 make 
