@@ -39,7 +39,6 @@ namespace decoder{
     for(int i = 0;i < 8;i++){
       if (str[i] == '*')continue;
       else if ((int)(str[i]-'0') != bits[i]){
-	std::cout << str <<" " << (int)(str[i] - '0') <<" " << bits[i] << std::endl;
 	return false;
       }
     }
@@ -72,7 +71,7 @@ namespace decoder{
 
     std::vector<int> bits = getBits(a);
 
-    std::cout << "a = " << (int)a << std::endl;
+    //std::cout << "a = " << (int)a << std::endl;
     
     if (a == 0b11111111){ 
       ret.first = CommandType::Halt;
@@ -85,23 +84,43 @@ namespace decoder{
       ret.first = CommandType::SMove;
       fread(&b, 1, 1, fp);
       std::vector<int> bits2 = getBits(b);
-      int lld_a = getVal(bits, 2, 3);
-      int lld_i = getVal(bits2, 3, 7);
-      option.emplace_back(lld_a);
-      option.emplace_back(lld_i);
+      int lld_a = getVal(bits, 2, 3);  // to be modified
+      int lld_i = getVal(bits2, 3, 7); // to be modified
+      option.emplace_back(lld_a); 
+      option.emplace_back(lld_i); 
     }  else if (isSame(bits, std::string("****1100"))){
       //«sld2.a»2«sld1.a»21100]8 [«sld2.i»4«sld1.i»4]8
       ret.first = CommandType::LMove;
       fread(&b, 1, 1, fp);
       std::vector<int> bits2 = getBits(b);
-      int sld2_a = getVal(bits,  0, 1);
-      int sld1_a = getVal(bits,  2, 3);
-      int sld2_i = getVal(bits2, 0, 3);
-      int sld1_i = getVal(bits2, 4, 7);
+      int sld2_a = getVal(bits,  0, 1); // to be modified
+      int sld1_a = getVal(bits,  2, 3);// to be modified
+      int sld2_i = getVal(bits2, 0, 3);// to be modified
+      int sld1_i = getVal(bits2, 4, 7);// to be modified
       option.emplace_back(sld2_a);
       option.emplace_back(sld1_a);
       option.emplace_back(sld2_i);
       option.emplace_back(sld1_i);
+    } else if (isSame(bits, std::string("*****111"))){
+      ret.first = CommandType::FusionP;
+      int nd = getVal(bits, 0, 4);
+      option.emplace_back(nd);// to be modified
+    } else if (isSame(bits, std::string("*****110"))){
+      ret.first = CommandType::FusionS;
+      int nd = getVal(bits, 0, 4);
+      option.emplace_back(nd);
+    } else if (isSame(bits, std::string("*****101"))){
+      ret.first = CommandType::Fission;
+      fread(&b, 1, 1, fp);
+      std::vector<int> bits2 = getBits(b);
+      int nd = getVal(bits,  0, 4); // to be modified
+      int m  = getVal(bits2, 0, 7);// to be modified
+      option.emplace_back(nd);
+      option.emplace_back(m);
+    } else if (isSame(bits, std::string("*****011"))){
+      ret.first = CommandType::Fill;
+      int nd = getVal(bits, 0, 4); // to be modified
+      option.emplace_back(nd);
     } 
 
     ret.second = option;
