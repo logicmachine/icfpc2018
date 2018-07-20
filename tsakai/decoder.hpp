@@ -112,7 +112,11 @@ namespace decoder{
     std::pair<CommandType, std::vector<std::vector<int>>> ret;
     
     unsigned char a, b;
-    fread(&a,1,1 ,fp);
+    int cnt = fread(&a,1,1 ,fp);
+    if (cnt == 0){
+      ret.first = CommandType::Empty;
+      return ret;
+    }
 
     std::vector<int> bits = getBits(a);
 
