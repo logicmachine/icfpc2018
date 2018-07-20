@@ -1,3 +1,5 @@
+#ifndef DECODER_H
+#define DECODER_H
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -172,3 +174,4 @@ namespace decoder{
     return ret;
   }
 }
+#endif //DECODER_H
