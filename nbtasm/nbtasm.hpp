@@ -622,10 +622,11 @@ public:
 					b, c, "volatility violation (voxels used by other bots: bid=" + std::to_string(it->second) + ")");
 			}
 		};
-		auto check_volatility = [this, &volatility_map](const Vec3& v, const Bot& b, const Command& c){
-			if(m_matrix(v.z, v.y, v.x)){ throw CommandError(b, c, "volatility violation (filled voxel)"); }
-			check_weak_volatility(v, b, c);
-		};
+		auto check_volatility =
+			[this, &check_weak_volatility](const Vec3& v, const Bot& b, const Command& c){
+				if(m_matrix(v.z, v.y, v.x)){ throw CommandError(b, c, "volatility violation (filled voxel)"); }
+				check_weak_volatility(v, b, c);
+			};
 		auto check_path_volatility =
 			[&check_volatility](const Vec3& v1, const Vec3& v2, const Bot& b, const Command& c){
 				for(int i = std::min(v1.z, v2.z); i <= std::max(v1.z, v2.z); ++i){
