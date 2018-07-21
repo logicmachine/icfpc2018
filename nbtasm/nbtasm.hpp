@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <memory>
 #include <cstdint>
 
 enum class Direction { X, Y, Z };
@@ -13,6 +14,9 @@ enum class Harmonics { Low, High };
 
 struct Vec3 {
 	int x, y, z;
+
+	Vec3() : x(0), y(0), z(0) { }
+	Vec3(int x, int y, int z) : x(x), y(y), z(z) { }
 
 	bool operator==(const Vec3& v) const { return x == v.x && y == v.y && z == v.z; }
 	bool operator!=(const Vec3& v) const { return !(*this == v); }
@@ -65,8 +69,8 @@ public:
 
 	bool test(const Vec3& a, const Vec3& b) const {
 		const int i_lo = std::min(a.z, b.z), i_hi = std::max(a.z, b.z);
-		const int j_lo = std::min(a.z, b.z), j_hi = std::max(a.z, b.z);
-		const int k_lo = std::min(a.z, b.z), k_hi = std::max(a.z, b.z);
+		const int j_lo = std::min(a.y, b.y), j_hi = std::max(a.y, b.y);
+		const int k_lo = std::min(a.x, b.x), k_hi = std::max(a.x, b.x);
 		for(int i = i_lo; i <= i_hi; ++i){
 			for(int j = j_lo; j <= j_hi; ++j){
 				for(int k = k_lo; k <= k_hi; ++k){
@@ -373,41 +377,41 @@ public:
 	}
 
 	void export_trace(const std::string& filename) const {
-		auto fp = fopen(filename.c_str(), "wb");
+		auto fp = std::unique_ptr<FILE, decltype(&fclose)>(
+			fopen(filename.c_str(), "wb"), fclose);
 		for(const auto& c : m_trace){
 			if(c.type == detail::CommandType::Halt){
-				fputc(0xff, fp);
+				fputc(0xff, fp.get());
 			}else if(c.type == detail::CommandType::Wait){
-				fputc(0xfe, fp);
+				fputc(0xfe, fp.get());
 			}else if(c.type == detail::CommandType::Flip){
-				fputc(0xfd, fp);
+				fputc(0xfd, fp.get());
 			}else if(c.type == detail::CommandType::SMove){
 				const auto& p = c.u.smove;
 				const auto lld = detail::encode_long_distance(p.lld);
-				fputc(0x04 | ((lld >> 5) << 4), fp);
-				fputc(lld & 0x1f, fp);
+				fputc(0x04 | ((lld >> 5) << 4), fp.get());
+				fputc(lld & 0x1f, fp.get());
 			}else if(c.type == detail::CommandType::LMove){
 				const auto& p = c.u.lmove;
 				const auto sld1 = detail::encode_short_distance(p.sld1);
 				const auto sld2 = detail::encode_short_distance(p.sld2);
-				fputc(0x0c | ((sld2 >> 4) << 6) | ((sld1 >> 4) << 4), fp);
-				fputc(((sld2 & 0x0f) << 4) | (sld1 & 0x0f), fp);
+				fputc(0x0c | ((sld2 >> 4) << 6) | ((sld1 >> 4) << 4), fp.get());
+				fputc(((sld2 & 0x0f) << 4) | (sld1 & 0x0f), fp.get());
 			}else if(c.type == detail::CommandType::FusionP){
 				const auto& p = c.u.fusion;
-				fputc(0x07 | (detail::encode_near_distance(p.nd) << 3), fp);
+				fputc(0x07 | (detail::encode_near_distance(p.nd) << 3), fp.get());
 			}else if(c.type == detail::CommandType::FusionS){
 				const auto& p = c.u.fusion;
-				fputc(0x06 | (detail::encode_near_distance(p.nd) << 3), fp);
+				fputc(0x06 | (detail::encode_near_distance(p.nd) << 3), fp.get());
 			}else if(c.type == detail::CommandType::Fission){
 				const auto& p = c.u.fission;
-				fputc(0x05 | (detail::encode_near_distance(p.nd) << 3), fp);
-				fputc(p.m, fp);
+				fputc(0x05 | (detail::encode_near_distance(p.nd) << 3), fp.get());
+				fputc(p.m, fp.get());
 			}else if(c.type == detail::CommandType::Fill){
 				const auto& p = c.u.fill;
-				fputc(0x03 | (detail::encode_near_distance(p.nd) << 3), fp);
+				fputc(0x03 | (detail::encode_near_distance(p.nd) << 3), fp.get());
 			}
 		}
-		fclose(fp);
 	}
 
 };
