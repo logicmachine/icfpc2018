@@ -55,6 +55,21 @@ struct Vec3 {
 		return 0;
 	}
 
+	static Vec3 decode_near_distance(unsigned int x) noexcept {
+		return Vec3((x / 9) - 1, (x / 3 % 3) - 1, (x % 3) - 1);
+	}
+	static Vec3 decode_short_distance(unsigned int x) noexcept {
+		if((x >> 4) == 0x01){ return Vec3((x & 0x0f) - 5, 0, 0); }
+		if((x >> 4) == 0x02){ return Vec3(0, (x & 0x0f) - 5, 0); }
+		if((x >> 4) == 0x03){ return Vec3(0, 0, (x & 0x0f) - 5); }
+		return Vec3();
+	}
+	static Vec3 decode_long_distance(unsigned int x) noexcept {
+		if((x >> 5) == 0x01){ return Vec3((x & 0x1f) - 15, 0, 0); }
+		if((x >> 5) == 0x02){ return Vec3(0, (x & 0x1f) - 15, 0); }
+		if((x >> 5) == 0x03){ return Vec3(0, 0, (x & 0x1f) - 15); }
+		return Vec3();
+	}
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Vec3& v){
@@ -194,6 +209,36 @@ struct Command {
 		}else if(type == CommandType::Fill){
 			os.put(0x03 | (fill_nd().encode_near_distance() << 3));
 		}
+	}
+
+	static Command from_binary(std::istream& is){
+		const unsigned int f = is.get();
+		if(f == 0xff){ return Command(CommandType::Halt); }
+		if(f == 0xfe){ return Command(CommandType::Wait); }
+		if(f == 0xfd){ return Command(CommandType::Flip); }
+		if((f & 0x07) == 0x07){
+			return Command(CommandType::FusionP)
+				.fusion_nd(Vec3::decode_near_distance(f >> 3));
+		}
+		if((f & 0x07) == 0x06){
+			return Command(CommandType::FusionS)
+				.fusion_nd(Vec3::decode_near_distance(f >> 3));
+		}
+		if((f & 0x07) == 0x03){
+			return Command(CommandType::Fill)
+				.fill_nd(Vec3::decode_near_distance(f >> 3));
+		}
+		const unsigned int s = is.get();
+		if((f & 0xcf) == 0x04){
+			return Command(CommandType::SMove)
+				.smove_lld(Vec3::decode_long_distance(((f & 0x30) << 1) | s));
+		}
+		if((f & 0x0f) == 0x0c){
+			return Command(CommandType::LMove)
+				.lmove_sld1(Vec3::decode_short_distance((f & 0x30) | (s & 0x0f)))
+				.lmove_sld2(Vec3::decode_short_distance(((f & 0xc0) >> 2) | ((s & 0xf0) >> 4)));
+		}
+		throw std::runtime_error("unknown command");
 	}
 };
 
@@ -491,9 +536,9 @@ public:
 				new_bots.push_back(Bot{ b.bid, b.pos + c.lmove_sld1() + c.lmove_sld2(), b.seeds });
 			}else if(c.type == CommandType::Fission){
 				const auto sp = detail::split_seeds(b.seeds, c.fission_m());
-				new_bots.push_back(Bot{ b.bid, b.pos, sp.first });
-				const int new_bid = __builtin_ctz(sp.second);
-				new_bots.push_back(Bot{ new_bid, b.pos + c.fission_nd(), sp.second & ~(1u << new_bid) });
+				new_bots.push_back(Bot{ b.bid, b.pos, sp.second });
+				const int new_bid = __builtin_ctz(sp.first);
+				new_bots.push_back(Bot{ new_bid, b.pos + c.fission_nd(), sp.first & ~(1u << new_bid) });
 			}else if(c.type == CommandType::Fill){
 				new_bots.push_back(b);
 			}else if(c.type == CommandType::Empty){
