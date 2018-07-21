@@ -40,12 +40,20 @@ using namespace std;
 
 #include "nbtasm.hpp"
 
-void dump(const State& s){
+void _dump(const State& s){
 	for(size_t i = 0; i < s.num_bots(); ++i){
 		std::cout << i << ": " << s.bots(i) << std::endl;
 	}
 	std::cout << std::endl;
 }
+
+#if 0
+#define dump(s) _dump(s)
+#define dout(s) cout << #s << s << endl
+#else
+#define dump(s)
+#define dout(s)
+#endif
 
 //using Int = long;
 
@@ -94,12 +102,16 @@ int write_data(string fname, const VoxelGrid& v)
 	return 0;
 }
 
+struct UnionFind;
+
 State s;
 VoxelGrid model;
 int R;
 Vec3 modelMin, modelMax;
 int searchXDir;
 int searchZDir;
+int connectedCompNum;
+bool harmonicsHigh;
 
 //*************
 int Vec2Int(Vec3 v) {
@@ -118,6 +130,7 @@ void clampVec3(Vec3& v, const Vec3& min, const Vec3& max) {
 
 struct UnionFind {
   vector<int> data;
+  UnionFind() : UnionFind(0){}
   UnionFind(int size) : data(size, -1){ }
 
   bool unionSet(int x, int y) {
@@ -146,6 +159,7 @@ struct UnionFind {
   }
   int size(Vec3 x) {return size(Vec2Int(x));}
 };
+UnionFind connectedUF;
 
 //*************
 void test_unionFind(){
@@ -201,11 +215,41 @@ void moveBot(State::BotReference bot, Vec3 target){
 	}
 }
 
+// 次に置く場所fillBox　で連結成分どうなるかを計算．
+void connectCheck(Vec3 fillBox) {
+	vector<Vec3> connectPoss;
+
+	for (Vec3 d : {Vec3{1,0,0}, Vec3{-1,0,0}, Vec3{0,1,0}, Vec3{0,-1,0}, Vec3{0,0,1}, Vec3{0,0,-1} }) {
+		Vec3 nb = fillBox + d;
+		if (nb.x < 0 || nb.y < 0 || nb.z < 0 ||
+			R <= nb.x || R <= nb.y || R <= nb.z) {
+			continue;
+		}
+		if (s.matrix()(nb.z, nb.y, nb.x) != 1){
+			continue;
+		}
+		connectPoss.push_back(nb);
+	}
+	if (connectPoss.size() == 0) {
+		connectedCompNum++;
+		return;
+	} else {
+		connectedUF.unionSet(fillBox, connectPoss[0]);
+		for (int i = 1; i < connectPoss.size(); i++) {
+			 if (connectedUF.unionSet(fillBox, connectPoss[i])) {
+				 connectedCompNum--;
+			 }
+		}
+	}
+}
+
 void solve(char** argv){
 	model = read_data(argv[1]);
 	R = model.r();
 	cout << "R: " << R << endl;
-	s = State(R);
+	s = State(R, 20);
+	connectedCompNum = 0;
+	connectedUF = UnionFind(R*R*R);
 
 #if 0
 	for (int y = 0; y < R; y++) {
@@ -244,11 +288,10 @@ void solve(char** argv){
 	cout << "modelMax" << modelMax << endl;
 	
 	// harmonic専任bot生成
-	s.bots(0).fission(Vec3{0,0,1}, 1);
+	s.bots(0).fission(Vec3{0,0,1}, 0);
 	s.commit();
 	
 	s.bots(0).wait();
-	s.bots(1).flip();
 	s.commit();
 
 	Vec3 targetBox = modelMin;
@@ -259,9 +302,9 @@ void solve(char** argv){
 		if (model(targetBox.z, targetBox.y, targetBox.x) != 1){
 			break;
 		}
-		// move
+		// targetBoxの真上へ move
 		Vec3 targetBoxU = targetBox + Vec3{0,1,0};
-		cout << "targetBoxU" << targetBoxU << endl;
+		dout(targetBoxU);
 		while (s.bots(0).pos() != targetBoxU) {
 			moveBot(s.bots(0), targetBoxU);
 			s.bots(1).wait();
@@ -269,11 +312,21 @@ void solve(char** argv){
 			dump(s);
 		}
 		// fill
+		connectCheck(targetBox);
+		if ((connectedCompNum > 1 && harmonicsHigh == false) ||
+		    (connectedCompNum <= 1 && harmonicsHigh == true)) {
+			harmonicsHigh = !harmonicsHigh;
+			//cout << "flip" << endl;
+			
+			s.bots(1).flip();
+		} else {
+			s.bots(1).wait();
+		}
 		s.bots(0).fill(Vec3{0,-1,0});
 		model(targetBox.z, targetBox.y, targetBox.x) = 0;
-		s.bots(1).wait();
 		s.commit();
 		dump(s);
+		dout(connectedCompNum);
 
 	}
 	// 帰る
@@ -296,12 +349,11 @@ void solve(char** argv){
 	s.bots(0).fusion_p(Vec3{0,0, 1});
 	s.bots(1).fusion_s(Vec3{0,0,-1});
 	s.commit();
-
-	s.bots(0).flip();
-	s.commit();
+	dump(s);
 	
 	s.bots(0).halt();
 	s.commit();
+	dump(s);
 
 	s.export_trace("trace.nbt");
 }
