@@ -162,7 +162,8 @@ vector<Vec3> move(const Tree &g,const VoxelGrid &v,const set<Vec3> &ban,const Ve
 		out(que.size(),v.r(),1);
 		Vec3 p=que.front();
 		que.pop();
-		rep(d,6){
+		vector<int> ds(6); iota(all(ds),0); random_shuffle(all(ds));
+		for(auto d:ds){
 			int nx=p.x, ny=p.y, nz=p.z;
 			rep(i,15){
 				nx+=dx[d]; ny+=dy[d]; nz+=dz[d];
