@@ -1,6 +1,6 @@
 #include "backward.hpp"
 
-void dump(const BackwardState& s){
+void dump(const State& s){
 	for(size_t i = 0; i < s.num_bots(); ++i){
 		std::cout << i << ": " << s.bots(i) << std::endl;
 	}
@@ -9,10 +9,10 @@ void dump(const BackwardState& s){
 
 int main(){
 	VoxelGrid initial(10);
+	initial(6, 0, 4) = 1;
 	initial(6, 0, 5) = 1;
-	initial(6, 0, 6) = 1;
 
-	BackwardState s(initial);
+	State s(initial, 20);
 	dump(s);
 
 	s.bots(0).lmove(Vec3{ 0, 0, 5 }, Vec3{ 5, 0, 0 });
@@ -51,7 +51,7 @@ int main(){
 	s.commit();
 	dump(s);
 
-	s.export_trace("trace.nbt");
+	export_backward_trace("trace.nbt", s);
 
 	return 0;
 }
