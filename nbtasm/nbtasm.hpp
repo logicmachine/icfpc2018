@@ -535,7 +535,7 @@ public:
 			}else if(c.type == CommandType::LMove){
 				new_bots.push_back(Bot{ b.bid, b.pos + c.lmove_sld1() + c.lmove_sld2(), b.seeds });
 			}else if(c.type == CommandType::Fission){
-				const auto sp = detail::split_seeds(b.seeds, c.fission_m());
+				const auto sp = detail::split_seeds(b.seeds, c.fission_m() + 1);
 				new_bots.push_back(Bot{ b.bid, b.pos, sp.second });
 				const int new_bid = __builtin_ctz(sp.first);
 				new_bots.push_back(Bot{ new_bid, b.pos + c.fission_nd(), sp.first & ~(1u << new_bid) });
