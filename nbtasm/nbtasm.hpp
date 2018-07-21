@@ -541,17 +541,22 @@ public:
 	ConstBotReference bots(size_t i) const noexcept { return ConstBotReference(m_bots[i]); }
 	BotReference bots(size_t i) noexcept { return BotReference(*this, m_bots[i], m_pending_commands[i]); }
 
-	ConstBotReference from_bid(int bid) const {
+	size_t bid2index(int bid) const {
 		for(size_t i = 0; i < m_bots.size(); ++i){
-			if(m_bots[i].bid == bid){ return ConstBotReference(m_bots[i]); }
+			if(m_bots[i].bid == bid){ return i; }
 		}
-		throw std::runtime_error("bot not found");
+		return -1;
+	}
+
+	ConstBotReference from_bid(int bid) const {
+		const size_t i = bid2index(bid);
+		if(i == -1){ throw std::runtime_error("bot not found"); }
+		return ConstBotReference(m_bots[i]);
 	}
 	BotReference from_bid(int bid){
-		for(size_t i = 0; i < m_bots.size(); ++i){
-			if(m_bots[i].bid == bid){ return BotReference(*this, m_bots[i], m_pending_commands[i]); }
-		}
-		throw std::runtime_error("bot not found");
+		const size_t i = bid2index(bid);
+		if(i == -1){ throw std::runtime_error("bot not found"); }
+		return BotReference(*this, m_bots[i], m_pending_commands[i]);
 	}
 
 	size_t num_bots() const { return m_bots.size(); }
