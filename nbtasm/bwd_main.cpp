@@ -9,8 +9,8 @@ void dump(const State& s){
 
 int main(){
 	VoxelGrid initial(10);
+	initial(6, 0, 4) = 1;
 	initial(6, 0, 5) = 1;
-	initial(6, 0, 6) = 1;
 
 	State s(initial, 20);
 	dump(s);
