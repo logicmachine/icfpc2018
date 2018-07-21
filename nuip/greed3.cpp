@@ -133,10 +133,10 @@ public:
 };
 
 void dump(const State& s){
-	for(size_t i = 0; i < s.num_bots(); ++i){
-		std::cout << i << ": " << s.bots(i) << std::endl;
-	}
-	std::cout << std::endl;
+	// for(size_t i = 0; i < s.num_bots(); ++i){
+	// 	std::cout << i << ": " << s.bots(i) << std::endl;
+	// }
+	// std::cout << std::endl;
 }
 
 Vec3 hunt(const Tree &v,const set<Vec3> ban,const Vec3 p){
@@ -287,7 +287,7 @@ int main(int argc, char* argv[]){
 					++bad;
 					reps(i,1,tmp.size()){
 						s.bots(i).smove(tmp[i]-tmp[i-1]);
-						s.dump_pending_commands(std::cerr);
+				//		s.dump_pending_commands(std::cerr);
 						s.commit();
 					}
 					ban.clear();
@@ -297,7 +297,7 @@ int main(int argc, char* argv[]){
 				}
 			}
 		}
-		s.dump_pending_commands(std::cerr);
+//		s.dump_pending_commands(std::cerr);
 		s.commit();
 		out(g.getLeaves().size(),1);
 	}
@@ -393,17 +393,17 @@ BRK3:
 			goto BRK;
 		}
 BRK:
-		s.dump_pending_commands(std::cerr);
+//		s.dump_pending_commands(std::cerr);
 		s.commit();
 	}
 	dump(s);
 
 	s.bots(0).halt();
-	s.dump_pending_commands(std::cerr);
+	//s.dump_pending_commands(std::cerr);
 	s.commit();
 	dump(s);
 
-	cout<<"hoge"<<endl;
+	// cout<<"hoge"<<endl;
 
 	string file(argv[1]);
 	{
