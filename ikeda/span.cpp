@@ -5,8 +5,8 @@
 using namespace std;
 
 /*
- 有向全域木を構築
- ground は Vec3{-1, -1, -1}
+ * ｿｿｿｿｿｿｿｿ
+ ground ｿ Vec3{-1, -1, -1}
  */
 
 class Tree{
@@ -60,7 +60,7 @@ public:
 		}
 	}
 
-	const set<Vec3>& getLeaves()const{ return leaves;}
+	const set<Vec3>& getLeaves(){ return leaves;}
 
 	void eraseLeaf(Vec3 leaf){
 		assert(leaves.count(leaf));
@@ -107,11 +107,12 @@ map<Vec3,vector<Vec3>> span(VoxelGrid mat){
 }
 
 
-int main(int argc, char* argv[]){
-  ios_base::sync_with_stdio(false);
-  cout<<fixed<<setprecision(0);
+int main(void){
 
-	VoxelGrid v = read_data("testcase/F.mdl");
+  string st;
+  cin >> st;
+
+	VoxelGrid v = read_data(st.c_str());
 
 	Tree poyo(v);
 
@@ -120,30 +121,12 @@ int main(int argc, char* argv[]){
 	}
 	cout<<endl;
 
-	poyo.eraseLeaf(Vec3{2,1,1});
-
-	for(auto v:poyo.getLeaves()){
-		cout<<v<<",";
-	}
-	cout<<endl;
-
-	poyo.eraseLeaf(Vec3{1,1,1});
-
-	for(auto v:poyo.getLeaves()){
-		cout<<v<<",";
-	}
-	cout<<endl;
-
-	//------------
 	auto g=span(v);
 
-	// ここの出力は
-	// https://csacademy.com/app/graph_editor/
-	// でビジュアライズできる
-	// for(auto p:g){
-	// 	for(auto v:p.second){
-	// 		cout<<"\""<<p.first<<"\" \""<<v<<"\""<<endl;
-	// 	}
-	// }
+	for(auto p:g){
+		for(auto v:p.second){
+			cout<<"\""<<p.first<<"\" \""<<v<<"\""<<endl;
+		}
+	}
   return 0;
 }
