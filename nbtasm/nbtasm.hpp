@@ -630,12 +630,14 @@ public:
 					}
 				}
 			};
+		Harmonics harmonics = m_harmonics;
 		for(size_t i = 0; i < m_bots.size(); ++i){
 			const auto& b = m_bots[i];
 			const auto& c = m_pending_commands[i];
 			if(c.type == CommandType::Wait){
 				check_volatility(b.pos, b, c);
 			}else if(c.type == CommandType::Flip){
+				harmonics = flip(harmonics);
 				check_volatility(b.pos, b, c);
 			}else if(c.type == CommandType::SMove){
 				check_path_volatility(b.pos, b.pos + c.smove_lld(), b, c);
@@ -657,7 +659,14 @@ public:
 				check_volatility(b.pos, b, c);
 			}
 		}
-		// TODO validation: grounded or ungrounded
+		// validation: grounded or ungrounded
+		if(harmonics == Harmonics::Low){
+			/*
+			const int r = m_matrix.size();
+			VoxelGrid grounded(r);
+			std::queue<Vec3> q;
+			*/
+		}
 #endif
 		// allocate next command buffer
 		std::vector<Command> new_pending_commands(new_bots.size());
@@ -712,6 +721,12 @@ public:
 			c.write_binary(ofs);
 		}
 		ofs.close();
+	}
+
+	void dump_pending_commands(std::ostream& os){
+		for(size_t i = 0; i < m_bots.size(); ++i){
+			os << m_bots[i] << ": " << m_pending_commands[i] << std::endl;
+		}
 	}
 
 };
