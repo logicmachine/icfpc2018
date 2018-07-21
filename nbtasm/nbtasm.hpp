@@ -613,8 +613,7 @@ public:
 #ifdef STRONG_VALIDATION
 		// validation: check volatility
 		std::unordered_map<Vec3, int> volatility_map;
-		auto check_volatility = [this, &volatility_map](const Vec3& v, const Bot& b, const Command& c){
-			if(m_matrix(v.z, v.y, v.x)){ throw CommandError(b, c, "volatility violation (filled voxel)"); }
+		auto check_weak_volatility = [this, &volatility_map](const Vec3& v, const Bot& b, const Command& c){
 			const auto it = volatility_map.find(v);
 			if(it == volatility_map.end()){
 				volatility_map.emplace(v, b.bid);
@@ -622,6 +621,10 @@ public:
 				throw CommandError(
 					b, c, "volatility violation (voxels used by other bots: bid=" + std::to_string(it->second) + ")");
 			}
+		}
+		auto check_volatility = [this, &volatility_map](const Vec3& v, const Bot& b, const Command& c){
+			if(m_matrix(v.z, v.y, v.x)){ throw CommandError(b, c, "volatility violation (filled voxel)"); }
+			check_weak_volatility(v, b, c);
 		};
 		auto check_path_volatility =
 			[&check_volatility](const Vec3& v1, const Vec3& v2, const Bot& b, const Command& c){
@@ -648,14 +651,14 @@ public:
 				check_path_volatility(b.pos,                  b.pos + c.lmove_sld1(), b, c);
 				check_path_volatility(b.pos + c.lmove_sld1(), b.pos + c.lmove_sld2(), b, c);
 			}else if(c.type == CommandType::Fission){
-				check_volatility(b.pos,                  b, c);
+				check_volatility(b.pos, b, c);
 				check_volatility(b.pos + c.fission_nd(), b, c);
 			}else if(c.type == CommandType::Fill){
-				check_volatility(b.pos,               b, c);
-				check_volatility(b.pos + c.fill_nd(), b, c);
+				check_volatility(b.pos, b, c);
+				check_weak_volatility(b.pos + c.fill_nd(), b, c);
 			}else if(c.type == CommandType::Empty){
-				check_volatility(b.pos,                b, c);
-				check_volatility(b.pos + c.empty_nd(), b, c);
+				check_volatility(b.pos, b, c);
+				check_weak_volatility(b.pos + c.empty_nd(), b, c);
 			}else if(c.type == CommandType::FusionP){
 				check_volatility(b.pos, b, c);
 			}else if(c.type == CommandType::FusionS){
