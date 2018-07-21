@@ -5,6 +5,8 @@
 #include <stdint.h>
 
 
+#define rrep(X,Y) for (int (X) = (Y)-1;(X) >=0;--(X))
+
 using namespace std;
 
 // class VoxelGrid {
@@ -355,7 +357,16 @@ void solve(char** argv){
 	s.commit();
 	dump(s);
 
-	s.export_trace("trace.nbt");
+	// output nbt
+	string file(argv[1]);
+	{
+		int n=file.size();
+		rrep(i,n)if(file[i]=='/'){
+			file=file.substr(i+1);
+			break;
+		}
+	}
+	s.export_trace((file.substr(0,5)+".nbt").c_str());
 }
 int main(int argc, char* argv[])
 {
