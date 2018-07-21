@@ -2,7 +2,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include <stdint.h>
+#include <cstdint>
 
 using namespace std;
 
@@ -50,8 +50,9 @@ VoxelGrid read_data(string fname)
 		fs.read((char*)&x, 1);
 		for (int j = 0; j < 8; j++) {
 			//v(cnt / (R * R), (cnt / R) % R, cnt % R) = (x & 0x80) ? 1 : 0;
-			v(cnt % R, (cnt / R) % R, cnt / (R * R)) = (x & 0x80) ? 1 : 0;
-			x <<= 1;
+			//v(cnt % R, (cnt / R) % R, cnt / (R * R)) = (x & 0x80) ? 1 : 0;
+			v(cnt % R, (cnt / R) % R, cnt / (R * R)) = static_cast<uint8_t>(x & 0x1);
+			x >>= 1;
 			cnt++;
 		}
 	}
@@ -70,9 +71,9 @@ int write_data(string fname, const VoxelGrid& v)
 	for (int i = 0; i < (R * R * R - 1) / 8 + 1; i++) {
 		unsigned char x = 0;
 		for (int j = 0; j < 8; j++) {
-			x <<= 1;
+			x >>= 1;
 			if (cnt < R * R * R)
-				x |= v(cnt % R, (cnt / R) % R, cnt / (R * R));
+				x |= v(cnt % R, (cnt / R) % R, cnt / (R * R)) ? 0x80 : 0x0;
 			cnt++;
 		}
 		fs.write((char*)&x, 1);
