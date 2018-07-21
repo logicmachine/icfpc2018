@@ -121,15 +121,18 @@ namespace decoder{
     }
 
     std::vector<int> bits = getBits(a);
-
     
     if (a == 0b11111111){ 
+      //std::cout <<"Halt" << std::endl;
       ret.first = CommandType::Halt;
     } else if (a == 0b11111110){
+      //std::cout <<"Wait" << std::endl;
       ret.first = CommandType::Wait;
     } else if (a == 0b11111101){
+      //std::cout <<"Flip" << std::endl;
       ret.first = CommandType::Flip;
     } else if (isSame(bits, std::string("00**0100"))){
+      //std::cout <<"SMove" << std::endl;
       ret.first = CommandType::SMove;
       fread(&b, 1, 1, fp);
       std::vector<int> bits2 = getBits(b);
@@ -137,6 +140,7 @@ namespace decoder{
       int lld_i = getVal(bits2, 3, 7); 
       option.emplace_back(getlld(lld_a, lld_i)); 
     }  else if (isSame(bits, std::string("****1100"))){
+      //std::cout <<"LMove" << std::endl;
       //«sld2.a»2«sld1.a»21100]8 [«sld2.i»4«sld1.i»4]8
       ret.first = CommandType::LMove;
       fread(&b, 1, 1, fp);
@@ -148,14 +152,17 @@ namespace decoder{
       option.emplace_back(getsld(sld1_a, sld1_i));
       option.emplace_back(getsld(sld2_a, sld2_i));
     } else if (isSame(bits, std::string("*****111"))){
+      //std::cout <<"FusionP" << std::endl;
       ret.first = CommandType::FusionP;
       int nd = getVal(bits, 0, 4);
       option.emplace_back(getnd(nd));// to be modified
     } else if (isSame(bits, std::string("*****110"))){
+      //std::cout <<"FusionS" << std::endl;
       ret.first = CommandType::FusionS;
       int nd = getVal(bits, 0, 4);
       option.emplace_back(getnd(nd));
     } else if (isSame(bits, std::string("*****101"))){
+      //std::cout <<"Fission" << std::endl;
       ret.first = CommandType::Fission;
       fread(&b, 1, 1, fp);
       std::vector<int> bits2 = getBits(b);
@@ -164,6 +171,7 @@ namespace decoder{
       option.emplace_back(getnd(nd));
       option.emplace_back(std::vector<int>(1,m) );
     } else if (isSame(bits, std::string("*****011"))){
+      //std::cout <<"Fill" << std::endl;
       //[«nd»5011]8
       ret.first = CommandType::Fill;
       int nd = getVal(bits, 0, 4);

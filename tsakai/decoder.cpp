@@ -1,50 +1,62 @@
 #include "decoder.hpp" 
 
-void print(std::string str, std::vector<std::vector<int>> & a){
-  std::cout <<"print===" << std::endl;
-  std::cout << "Command : " << str << std::endl;
-  std::cout << "Option : size = " << a.size() << std::endl;
+using namespace std;
+
+void print(FILE *fp, std::string str, std::vector<std::vector<int>> & a){
+  fprintf(fp, "%s ", str.c_str());
+  // to make visible for human
   for(int i = 0;i < a.size();i++){
+    if (i != 0)    fprintf(fp, ",");
     for(int j = 0;j < a[i].size();j++){
-      std::cout << a[i][j] <<" ";
+      fprintf(fp, "%d ", a[i][j]);
     }
-    std::cout << std::endl;
   }
-  std::cout << std::endl;
+  fprintf(fp, "\n");
 }
 
-int main(int argc, char **argv){
-  FILE *fp = fopen("trace.nbt", "rb");
-
+int main(int argc, char**argv){
+  string in = argc < 2 ? "trace.nbt" : argv[1];
+  string out = argc < 3 ? "tmp.txt" : argv[2];
+  FILE *fp = fopen(in.c_str(), "rb");
+  FILE *fout = fopen(out.c_str(), "w");
+  if (fp == NULL){
+    cout <<"FILE Cannot be read" << endl;
+    exit(1);
+  }
+  int cnt = 0;
   while(1){
     std::pair<decoder::CommandType, std::vector<std::vector<int>>> a = decoder::decode(fp); 
     if (a.first == decoder::CommandType::Halt) {
-      print("Halt", a.second);
+      print(fout, "Halt", a.second);
     } else if (a.first == decoder::CommandType::Wait) {
-      print("Wait", a.second);
+      print(fout, "Wait", a.second);
     } else if (a.first == decoder::CommandType::Flip) {
-      print("Flip", a.second);
+      print(fout, "Flip", a.second);
     } else if (a.first == decoder::CommandType::SMove){
-      print("SMove", a.second);
+      print(fout, "SMove", a.second);
     } else if (a.first == decoder::CommandType::LMove){
-      print("LMove", a.second);
+      print(fout, "LMove", a.second);
     } else if (a.first == decoder::CommandType::Fission){
-      print("Fission", a.second);
+      print(fout, "Fission", a.second);
     } else if (a.first == decoder::CommandType::Fill){
-      print("Fill", a.second);
+      print(fout, "Fill", a.second);
     } else if (a.first == decoder::CommandType::FusionP){
-      print("FusionP", a.second);
+      print(fout, "FusionP", a.second);
     } else if (a.first == decoder::CommandType::FusionS){
-      print("FusionS", a.second);
+      print(fout, "FusionS", a.second);
+    } else if (a.first == decoder::CommandType::Fill){
     } else {
-      print("EMPTY", a.second);
+      //print("EMPTY", a.second);
       break;
     }
+    cnt++;
+    //if (cnt%100 == 0)cout << cnt << endl;
   }
+  //cout << cnt << endl;
+  fclose(fp);
+  fclose(fout);
 
-  return 0;
 }
-
 
 /*
 int main(int argc, char **argv){
