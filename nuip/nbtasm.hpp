@@ -15,6 +15,9 @@ enum class Harmonics { Low, High };
 struct Vec3 {
 	int x, y, z;
 
+	// Vec3() : x(0), y(0), z(0) { }
+	// Vec3(int x, int y, int z) : x(x), y(y), z(z) { }
+
 	bool operator==(const Vec3& v) const { return x == v.x && y == v.y && z == v.z; }
 	bool operator!=(const Vec3& v) const { return !(*this == v); }
 
@@ -131,7 +134,7 @@ static inline std::pair<uint32_t, uint32_t> split_seeds(uint32_t s, int m){
 }
 
 static inline bool test_near_distance(const Vec3& v){
-	if(abs(v.x) >= 2 || abs(v.y) >= 2 || abs(v.z) >= 2){ return false; }
+	if(v.x >= 2 || v.y >= 2 || v.z >= 2){ return false; }
 	if(abs(v.x) + abs(v.y) + abs(v.z) > 2){ return false; }
 	return true;
 }
@@ -262,10 +265,6 @@ public:
 			detail::throw_test_near_distance(nd);
 			m_command.type = detail::CommandType::FusionS;
 			m_command.u.fusion = detail::FusionParams{ nd };
-		}
-
-		void exec(const detail::Command& cmd){
-			m_command = cmd;
 		}
 
 	};
