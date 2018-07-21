@@ -193,9 +193,13 @@ struct Command {
 		}else if(type == CommandType::Flip){
 			os.put(0xfd);
 		}else if(type == CommandType::SMove){
-			const auto lld = smove_lld().encode_long_distance();
-			os.put(0x04 | ((lld >> 5) << 4));
-			os.put(lld & 0x1f);
+			if(smove_lld() == Vec3()){
+				os.put(0xfe); // Wait
+			}else{
+				const auto lld = smove_lld().encode_long_distance();
+				os.put(0x04 | ((lld >> 5) << 4));
+				os.put(lld & 0x1f);
+			}
 		}else if(type == CommandType::LMove){
 			const auto sld1 = lmove_sld1().encode_short_distance();
 			const auto sld2 = lmove_sld2().encode_short_distance();
@@ -239,6 +243,11 @@ struct Command {
 			return Command(CommandType::LMove)
 				.lmove_sld1(Vec3::decode_short_distance((f & 0x30) | (s & 0x0f)))
 				.lmove_sld2(Vec3::decode_short_distance(((f & 0xc0) >> 2) | ((s & 0xf0) >> 4)));
+		}
+		if((f & 0x07) == 0x05){
+			return Command(CommandType::Fission)
+				.fission_nd(Vec3::decode_near_distance(f >> 3))
+				.fission_m(s);
 		}
 		throw std::runtime_error("unknown command");
 	}
