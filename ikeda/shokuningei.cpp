@@ -118,9 +118,33 @@ void treeone()
     write_data("tree.mdl", v);
 }
 
+void box(int r, int sl, int ll)
+{
+    VoxelGrid v(r);
+    
+    for (int i = (r - sl) / 2; i < r - (r - sl)/2; i++) {
+        for (int j = (r - ll) / 2; j < r - (r - ll)/2; j++) {
+            v(i, r-2, j) = 1;
+        }
+    }
+
+    for (int i = 0; i < r-2; i++) {
+        for (int j = (r - sl)/2; j < r - (r - sl)/2; j++) {
+            v(j, i, (r - ll)/2) = 1;
+            v(j, i, r - (r - ll)/2 - 1) = 1;
+        }
+        for (int j = (r - ll)/2; j < r - (r - ll)/2; j++) {
+            v((r - sl)/2, i, j) = 1;
+            v(r - (r - sl)/2 - 1, i, j) = 1;
+        }
+    }
+    writeToConsole(v);
+    write_data("box.mdl", v);
+}
+
 int main(void)
 {
-    treeone();
+    box(10, 5, 8);
     return 0;
 }
 
