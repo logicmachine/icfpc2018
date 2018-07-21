@@ -56,6 +56,9 @@ struct Vec3 {
 		if(x == 0 && y == 0){ return 0x60 | (z + 15); }
 		return 0;
 	}
+	unsigned int encode_far_distance() const noexcept {
+		return (x + 30) | ((y + 30) << 8) | ((z + 30) << 16);
+	}
 
 	static Vec3 decode_near_distance(unsigned int x) noexcept {
 		return Vec3((x / 9) - 1, (x / 3 % 3) - 1, (x % 3) - 1);
@@ -71,6 +74,12 @@ struct Vec3 {
 		if((x >> 5) == 0x02){ return Vec3(0, (x & 0x1f) - 15, 0); }
 		if((x >> 5) == 0x03){ return Vec3(0, 0, (x & 0x1f) - 15); }
 		return Vec3();
+	}
+	static Vec3 decode_far_distance(unsigned int x) noexcept {
+		return Vec3(
+			((x >>  0) & 0xff) - 30,
+			((x >>  8) & 0xff) - 30,
+			((x >> 16) & 0xff) - 30);
 	}
 };
 
@@ -148,7 +157,9 @@ enum class CommandType {
 	Fill,
 	Empty,
 	FusionP,
-	FusionS
+	FusionS,
+	GFill,
+	GEmpty
 };
 
 struct Command {
@@ -214,6 +225,8 @@ struct Command {
 			os.put(fission_m());
 		}else if(type == CommandType::Fill){
 			os.put(0x03 | (fill_nd().encode_near_distance() << 3));
+		}else if(type == CommandType::Empty){
+			os.put(0x02 | (empty_nd().encode_near_distance() << 3));
 		}
 	}
 
@@ -233,6 +246,10 @@ struct Command {
 		if((f & 0x07) == 0x03){
 			return Command(CommandType::Fill)
 				.fill_nd(Vec3::decode_near_distance(f >> 3));
+		}
+		if((f & 0x07) == 0x02){
+			return Command(CommandType::Empty)
+				.empty_nd(Vec3::decode_near_distance(f >> 3));
 		}
 		const unsigned int s = is.get();
 		if((f & 0xcf) == 0x04){
@@ -270,7 +287,7 @@ inline std::ostream& operator<<(std::ostream& os, const Command& c){
 	}else if(c.type == CommandType::Fill){
 		os << "type=Fill, nd=" << c.fill_nd();
 	}else if(c.type == CommandType::Empty){
-		os << "type=Empty, nd=" << c.fill_nd();
+		os << "type=Empty, nd=" << c.empty_nd();
 	}else if(c.type == CommandType::FusionP){
 		os << "type=FusionP, nd=" << c.fusion_nd();
 	}else if(c.type == CommandType::FusionS){
@@ -387,6 +404,18 @@ static inline bool test_long_distance(const Vec3& v) noexcept {
 static inline void throw_test_long_distance(const Vec3& v, const Bot& b, const Command& c){
 	if(!test_long_distance(v)){
 		throw CommandError(b, c, "invalid long linear distance");
+	}
+}
+
+static inline bool test_far_distance(const Vec3& v) noexcept {
+	if(v.x < -30 || 30 < v.x){ return false; }
+	if(v.y < -30 || 30 < v.y){ return false; }
+	if(v.z < -30 || 30 < v.z){ return false; }
+	return true;
+}
+static inline void throw_test_far_distance(const Vec3& v, const Bot& b, const Command& c){
+	if(!test_far_distance(v)){
+		throw CommandError(b, c, "invalid far distance");
 	}
 }
 
