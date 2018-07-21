@@ -8,7 +8,7 @@ void dump(const State& s){
 }
 
 int main(){
-	State s(10);
+	State s(10, 20);
 	dump(s);
 
 	s.bots(0).smove(Vec3{ 4, 0, 0 });
