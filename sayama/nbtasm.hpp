@@ -3,14 +3,13 @@
 
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <tuple>
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
 #include <memory>
 #include <cstdint>
-
+#include <iomanip>
 
 enum class Harmonics { Low, High };
 
@@ -39,7 +38,7 @@ struct Vec3 {
 	Vec3& operator+=(const Vec3& v) noexcept { x += v.x; y += v.y; z += v.z; return *this; }
 	Vec3& operator-=(const Vec3& v) noexcept { x -= v.x; y -= v.y; z -= v.z; return *this; }
 
-	int mlen() const noexcept { return abs(x) + abs(y) + abs(z); }
+	int mlen() const noexcept { return std::abs(x) + std::abs(y) + std::abs(z); }
 
 	unsigned int encode_near_distance() const noexcept {
 		return (x + 1) * 9 + (y + 1) * 3 + (z + 1);
@@ -56,31 +55,15 @@ struct Vec3 {
 		if(x == 0 && y == 0){ return 0x60 | (z + 15); }
 		return 0;
 	}
-	unsigned int encode_far_distance() const noexcept {
-		return (x + 30) | ((y + 30) << 8) | ((z + 30) << 16);
-	}
 
-	static Vec3 decode_near_distance(unsigned int x) noexcept {
-		return Vec3((x / 9) - 1, (x / 3 % 3) - 1, (x % 3) - 1);
-	}
-	static Vec3 decode_short_distance(unsigned int x) noexcept {
-		if((x >> 4) == 0x01){ return Vec3((x & 0x0f) - 5, 0, 0); }
-		if((x >> 4) == 0x02){ return Vec3(0, (x & 0x0f) - 5, 0); }
-		if((x >> 4) == 0x03){ return Vec3(0, 0, (x & 0x0f) - 5); }
-		return Vec3();
-	}
-	static Vec3 decode_long_distance(unsigned int x) noexcept {
-		if((x >> 5) == 0x01){ return Vec3((x & 0x1f) - 15, 0, 0); }
-		if((x >> 5) == 0x02){ return Vec3(0, (x & 0x1f) - 15, 0); }
-		if((x >> 5) == 0x03){ return Vec3(0, 0, (x & 0x1f) - 15); }
-		return Vec3();
-	}
-	static Vec3 decode_far_distance(unsigned int x) noexcept {
-		return Vec3(
-			((x >>  0) & 0xff) - 30,
-			((x >>  8) & 0xff) - 30,
-			((x >> 16) & 0xff) - 30);
-	}
+  int abs() const {
+    return std::abs(x) + std::abs(y) + std::abs(z);
+  }
+
+  int encode(const int r) const {
+    return z * r * r + y * r + x;
+  }
+
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Vec3& v){
@@ -127,6 +110,15 @@ public:
 		return m_grid[i * r * r + j * r + k];
 	}
 
+	uint8_t operator()(const Vec3 &v) const {
+		const int r = m_r;
+		return m_grid[v.z * r * r + v.y * r + v.x];
+	}
+	uint8_t& operator()(const Vec3 &v){
+		const int r = m_r;
+		return m_grid[v.z * r * r + v.y * r + v.x];
+	}
+
 	int r() const noexcept { return m_r; }
 	int size() const noexcept { return m_r; }
 
@@ -143,9 +135,23 @@ public:
 		}
 		return true;
 	}
-
 };
 
+std::ostream &operator<<(std::ostream &out, const VoxelGrid &grid) {
+  const int r = grid.r();
+
+  out << r << std::endl;
+  for (int y = 0; y < r; y++) {
+    for (int z = 0; z < r; z++) {
+      for (int x = 0; x < r; x++) {
+        out << std::setw(5) << static_cast<int>(grid(z, y, x));
+      }
+      out << std::endl;
+    }
+    out << "---" << std::endl;
+  }
+  return out;
+}
 
 enum class CommandType {
 	Halt,
@@ -157,9 +163,7 @@ enum class CommandType {
 	Fill,
 	Empty,
 	FusionP,
-	FusionS,
-	GFill,
-	GEmpty
+	FusionS
 };
 
 struct Command {
@@ -204,13 +208,9 @@ struct Command {
 		}else if(type == CommandType::Flip){
 			os.put(0xfd);
 		}else if(type == CommandType::SMove){
-			if(smove_lld() == Vec3()){
-				os.put(0xfe); // Wait
-			}else{
-				const auto lld = smove_lld().encode_long_distance();
-				os.put(0x04 | ((lld >> 5) << 4));
-				os.put(lld & 0x1f);
-			}
+			const auto lld = smove_lld().encode_long_distance();
+			os.put(0x04 | ((lld >> 5) << 4));
+			os.put(lld & 0x1f);
 		}else if(type == CommandType::LMove){
 			const auto sld1 = lmove_sld1().encode_short_distance();
 			const auto sld2 = lmove_sld2().encode_short_distance();
@@ -225,54 +225,15 @@ struct Command {
 			os.put(fission_m());
 		}else if(type == CommandType::Fill){
 			os.put(0x03 | (fill_nd().encode_near_distance() << 3));
-		}else if(type == CommandType::Empty){
-			os.put(0x02 | (empty_nd().encode_near_distance() << 3));
 		}
-	}
-
-	static Command from_binary(std::istream& is){
-		const unsigned int f = is.get();
-		if(f == 0xff){ return Command(CommandType::Halt); }
-		if(f == 0xfe){ return Command(CommandType::Wait); }
-		if(f == 0xfd){ return Command(CommandType::Flip); }
-		if((f & 0x07) == 0x07){
-			return Command(CommandType::FusionP)
-				.fusion_nd(Vec3::decode_near_distance(f >> 3));
-		}
-		if((f & 0x07) == 0x06){
-			return Command(CommandType::FusionS)
-				.fusion_nd(Vec3::decode_near_distance(f >> 3));
-		}
-		if((f & 0x07) == 0x03){
-			return Command(CommandType::Fill)
-				.fill_nd(Vec3::decode_near_distance(f >> 3));
-		}
-		if((f & 0x07) == 0x02){
-			return Command(CommandType::Empty)
-				.empty_nd(Vec3::decode_near_distance(f >> 3));
-		}
-		const unsigned int s = is.get();
-		if((f & 0xcf) == 0x04){
-			return Command(CommandType::SMove)
-				.smove_lld(Vec3::decode_long_distance(((f & 0x30) << 1) | s));
-		}
-		if((f & 0x0f) == 0x0c){
-			return Command(CommandType::LMove)
-				.lmove_sld1(Vec3::decode_short_distance((f & 0x30) | (s & 0x0f)))
-				.lmove_sld2(Vec3::decode_short_distance(((f & 0xc0) >> 2) | ((s & 0xf0) >> 4)));
-		}
-		if((f & 0x07) == 0x05){
-			return Command(CommandType::Fission)
-				.fission_nd(Vec3::decode_near_distance(f >> 3))
-				.fission_m(s);
-		}
-		throw std::runtime_error("unknown command");
 	}
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Command& c){
 	os << "Command{ ";
-	if(c.type == CommandType::Halt){
+	if(c.type == CommandType::Empty){
+		os << "type=Empty";
+	}else if(c.type == CommandType::Halt){
 		os << "type=Halt";
 	}else if(c.type == CommandType::Wait){
 		os << "type=Wait";
@@ -287,7 +248,7 @@ inline std::ostream& operator<<(std::ostream& os, const Command& c){
 	}else if(c.type == CommandType::Fill){
 		os << "type=Fill, nd=" << c.fill_nd();
 	}else if(c.type == CommandType::Empty){
-		os << "type=Empty, nd=" << c.empty_nd();
+		os << "type=Empty, nd=" << c.fill_nd();
 	}else if(c.type == CommandType::FusionP){
 		os << "type=FusionP, nd=" << c.fusion_nd();
 	}else if(c.type == CommandType::FusionS){
@@ -338,49 +299,13 @@ static inline void format_seeds(std::ostream& os, uint32_t s){
 	os << ")";
 }
 
-}
-
-struct Bot {
-	int bid;
-	Vec3 pos;
-	uint32_t seeds;
-};
-
-std::ostream& operator<<(std::ostream& os, const Bot& b){
-	os << "Bot{ bid=" << b.bid << ", pos=" << b.pos << ", seeds=";
-	detail::format_seeds(os, b.seeds);
-	return os << " }";
-}
-
-
-struct CommandError : public std::logic_error {
-	Bot bot;
-	Command command;
-
-	static std::string make_message(
-		const Bot& bot, const Command& command, const std::string& message)
-	{
-		std::ostringstream oss;
-		oss << message << " (bot = " << bot << ", command = " << command << ")";
-		return oss.str();
-	}
-
-	CommandError(Bot bot, Command command, const std::string& message)
-		: std::logic_error(make_message(bot, command, message))
-		, bot(bot)
-		, command(command)
-	{ }
-};
-
 static inline bool test_near_distance(const Vec3& v) noexcept {
 	if(abs(v.x) >= 2 || abs(v.y) >= 2 || abs(v.z) >= 2){ return false; }
 	if(abs(v.x) + abs(v.y) + abs(v.z) > 2){ return false; }
 	return true;
 }
-static inline void throw_test_near_distance(const Vec3& v, const Bot& b, const Command& c){
-	if(!test_near_distance(v)){
-		throw CommandError(b, c, "invalid near distance");
-	}
+static inline void throw_test_near_distance(const Vec3& v){
+	if(!test_near_distance(v)){ throw std::runtime_error("invalid nd"); }
 }
 
 static inline bool test_short_distance(const Vec3& v) noexcept {
@@ -389,10 +314,8 @@ static inline bool test_short_distance(const Vec3& v) noexcept {
 	if(v.x == 0 && v.y == 0){ return -5 <= v.z && v.z <= 5; }
 	return false;
 }
-static inline void throw_test_short_distance(const Vec3& v, const Bot& b, const Command& c){
-	if(!test_short_distance(v)){
-		throw CommandError(b, c, "invalid short linear distance");
-	}
+static inline void throw_test_short_distance(const Vec3& v){
+	if(!test_short_distance(v)){ throw std::runtime_error("invalid sld"); }
 }
 
 static inline bool test_long_distance(const Vec3& v) noexcept {
@@ -401,35 +324,28 @@ static inline bool test_long_distance(const Vec3& v) noexcept {
 	if(v.x == 0 && v.y == 0){ return -15 <= v.z && v.z <= 15; }
 	return false;
 }
-static inline void throw_test_long_distance(const Vec3& v, const Bot& b, const Command& c){
-	if(!test_long_distance(v)){
-		throw CommandError(b, c, "invalid long linear distance");
-	}
-}
-
-static inline bool test_far_distance(const Vec3& v) noexcept {
-	if(v.x < -30 || 30 < v.x){ return false; }
-	if(v.y < -30 || 30 < v.y){ return false; }
-	if(v.z < -30 || 30 < v.z){ return false; }
-	return true;
-}
-static inline void throw_test_far_distance(const Vec3& v, const Bot& b, const Command& c){
-	if(!test_far_distance(v)){
-		throw CommandError(b, c, "invalid far distance");
-	}
+static inline void throw_test_long_distance(const Vec3& v){
+	if(!test_long_distance(v)){ throw std::runtime_error("invalid lld"); }
 }
 
 static inline bool test_position_range(int r, const Vec3& v) noexcept {
 	return (0 <= v.x && v.x < r) && (0 <= v.y && v.y < r) && (0 <= v.z && v.z < r);
 }
-static inline void throw_test_position_range(int r, const Vec3& v, const Bot& b, const Command& c){
-	if(!test_position_range(r, v)){
-		throw CommandError(b, c, "position out of range");
-	}
+static inline void throw_test_position_range(int r, const Vec3& v){
+	if(!test_position_range(r, v)){ throw std::runtime_error("position out of range"); }
+}
+
 }
 
 
 class State {
+
+private:
+	struct Bot {
+		int bid;
+		Vec3 pos;
+		uint32_t seeds;
+	};
 
 public:
 	class ConstBotReference {
@@ -467,56 +383,47 @@ public:
 		void wait(){ m_command = Command(CommandType::Wait); }
 		void flip(){ m_command = Command(CommandType::Flip); }
 		void smove(const Vec3& lld){
-			const auto c = Command(CommandType::SMove)
+			detail::throw_test_long_distance(lld);
+			detail::throw_test_position_range(m_state.matrix().size(), m_bot.pos + lld);
+			m_command = Command(CommandType::SMove)
 				.smove_lld(lld);
-			throw_test_long_distance(lld, m_bot, c);
-			throw_test_position_range(
-				m_state.matrix().size(), m_bot.pos + lld, m_bot, c);
-			m_command = c;
 		}
 		void lmove(const Vec3& sld1, const Vec3& sld2){
-			const auto c = Command(CommandType::LMove)
+			detail::throw_test_short_distance(sld1);
+			detail::throw_test_short_distance(sld2);
+			detail::throw_test_position_range(m_state.matrix().r(), m_bot.pos + sld1 + sld2);
+			m_command = Command(CommandType::LMove)
 				.lmove_sld1(sld1)
 				.lmove_sld2(sld2);
-			throw_test_short_distance(sld1, m_bot, c);
-			throw_test_short_distance(sld2, m_bot, c);
-			throw_test_position_range(
-				m_state.matrix().r(), m_bot.pos + sld1 + sld2, m_bot, c);
-			m_command = c;
 		}
 		int fission(const Vec3& nd, int m){
-			const auto c = Command(CommandType::Fission)
+			detail::throw_test_near_distance(nd);
+			const int n = __builtin_popcount(m_bot.seeds);
+			if(m < 0 || n < m + 1){ throw std::runtime_error("fission: invalid m"); }
+			m_command = Command(CommandType::Fission)
 				.fission_nd(nd)
 				.fission_m(m);
-			throw_test_near_distance(nd, m_bot, c);
-			const int n = __builtin_popcount(m_bot.seeds);
-			if(m < 0 || n < m + 1){ throw CommandError(m_bot, c, "invalid m"); }
-			m_command = c;
 			return __builtin_ctz(m_bot.seeds);
 		}
 		void fill(const Vec3& nd){
-			const auto c = Command(CommandType::Fill)
+			detail::throw_test_near_distance(nd);
+			m_command = Command(CommandType::Fill)
 				.fill_nd(nd);
-			throw_test_near_distance(nd, m_bot, c);
-			m_command = c;
 		}
 		void empty(const Vec3& nd){
-			const auto c = Command(CommandType::Empty)
+			detail::throw_test_near_distance(nd);
+			m_command = Command(CommandType::Empty)
 				.empty_nd(nd);
-			throw_test_near_distance(nd, m_bot, c);
-			m_command = c;
 		}
 		void fusion_p(const Vec3& nd){
-			const auto c = Command(CommandType::FusionP)
+			detail::throw_test_near_distance(nd);
+			m_command = Command(CommandType::FusionP)
 				.fusion_nd(nd);
-			throw_test_near_distance(nd, m_bot, c);
-			m_command = c;
 		}
 		void fusion_s(const Vec3& nd){
-			const auto c = Command(CommandType::FusionS)
+			detail::throw_test_near_distance(nd);
+			m_command = Command(CommandType::FusionS)
 				.fusion_nd(nd);
-			throw_test_near_distance(nd, m_bot, c);
-			m_command = c;
 		}
 
 		void exec(const Command& cmd){
@@ -567,7 +474,7 @@ public:
 		, m_max_num_bots(max_num_bots)
 	{ }
 
-	int64_t energy() const noexcept { return m_energy; }
+	int energy() const noexcept { return m_energy; }
 	Harmonics harmonics() const noexcept { return m_harmonics; }
 
 	const VoxelGrid& matrix() const noexcept { return m_matrix; }
@@ -577,22 +484,17 @@ public:
 	ConstBotReference bots(size_t i) const noexcept { return ConstBotReference(m_bots[i]); }
 	BotReference bots(size_t i) noexcept { return BotReference(*this, m_bots[i], m_pending_commands[i]); }
 
-	size_t bid2index(int bid) const {
-		for(size_t i = 0; i < m_bots.size(); ++i){
-			if(m_bots[i].bid == bid){ return i; }
-		}
-		return -1;
-	}
-
 	ConstBotReference from_bid(int bid) const {
-		const size_t i = bid2index(bid);
-		if(i == -1){ throw std::runtime_error("bot not found"); }
-		return ConstBotReference(m_bots[i]);
+		for(size_t i = 0; i < m_bots.size(); ++i){
+			if(m_bots[i].bid == bid){ return ConstBotReference(m_bots[i]); }
+		}
+		throw std::runtime_error("bot not found");
 	}
 	BotReference from_bid(int bid){
-		const size_t i = bid2index(bid);
-		if(i == -1){ throw std::runtime_error("bot not found"); }
-		return BotReference(*this, m_bots[i], m_pending_commands[i]);
+		for(size_t i = 0; i < m_bots.size(); ++i){
+			if(m_bots[i].bid == bid){ return BotReference(*this, m_bots[i], m_pending_commands[i]); }
+		}
+		throw std::runtime_error("bot not found");
 	}
 
 	size_t num_bots() const { return m_bots.size(); }
@@ -620,99 +522,28 @@ public:
 			}else if(c.type == CommandType::LMove){
 				new_bots.push_back(Bot{ b.bid, b.pos + c.lmove_sld1() + c.lmove_sld2(), b.seeds });
 			}else if(c.type == CommandType::Fission){
-				const auto sp = detail::split_seeds(b.seeds, c.fission_m() + 1);
-				new_bots.push_back(Bot{ b.bid, b.pos, sp.second });
-				const int new_bid = __builtin_ctz(sp.first);
-				new_bots.push_back(Bot{ new_bid, b.pos + c.fission_nd(), sp.first & ~(1u << new_bid) });
+				const auto sp = detail::split_seeds(b.seeds, c.fission_m());
+				new_bots.push_back(Bot{ b.bid, b.pos, sp.first });
+				const int new_bid = __builtin_ctz(sp.second);
+				new_bots.push_back(Bot{ new_bid, b.pos + c.fission_nd(), sp.second & ~(1u << new_bid) });
 			}else if(c.type == CommandType::Fill){
 				new_bots.push_back(b);
 			}else if(c.type == CommandType::Empty){
 				new_bots.push_back(b);
 			}else if(c.type == CommandType::FusionP){
 				const auto it = pos2idx.find(b.pos + c.fusion_nd());
-				if(it == pos2idx.end()){ throw CommandError(b, c, "unmatched fusion"); }
+				if(it == pos2idx.end()){ throw std::runtime_error("unmatched fusion"); }
 				const auto& secondary = m_bots[it->second];
-				const auto& c2 = m_pending_commands[it->second];
-				if(c2.type != CommandType::FusionS){ throw CommandError(b, c, "unmatched fusion"); }
-				if(c2.fusion_nd() != -c.fusion_nd()){ throw CommandError(b, c, "unmatched fusion"); }
 				new_bots.push_back(Bot{ b.bid, b.pos, b.seeds | secondary.seeds | (1u << secondary.bid) });
 			}else if(c.type == CommandType::FusionS){
 				const auto it = pos2idx.find(b.pos + c.fusion_nd());
-				if(it == pos2idx.end()){ throw CommandError(b, c, "unmatched fusion"); }
-				const auto& c2 = m_pending_commands[it->second];
-				if(c2.type != CommandType::FusionP){ throw CommandError(b, c, "unmatched fusion"); }
-				if(c2.fusion_nd() != -c.fusion_nd()){ throw CommandError(b, c, "unmatched fusion"); }
+				if(it == pos2idx.end()){ throw std::runtime_error("unmatched fusion"); }
 			}
 		}
 		// sort by bid
 		std::sort(
 			new_bots.begin(), new_bots.end(),
 			[](const Bot& a, const Bot& b){ return a.bid < b.bid; });
-#ifdef STRONG_VALIDATION
-		// validation: check volatility
-		std::unordered_map<Vec3, int> volatility_map;
-		auto check_weak_volatility = [this, &volatility_map](const Vec3& v, const Bot& b, const Command& c){
-			const auto it = volatility_map.find(v);
-			if(it == volatility_map.end()){
-				volatility_map.emplace(v, b.bid);
-			}else if(it->second != b.bid){
-				throw CommandError(
-					b, c, "volatility violation (voxels used by other bots: bid=" + std::to_string(it->second) + ")");
-			}
-		};
-		auto check_volatility =
-			[this, &check_weak_volatility](const Vec3& v, const Bot& b, const Command& c){
-				if(m_matrix(v.z, v.y, v.x)){ throw CommandError(b, c, "volatility violation (filled voxel)"); }
-				check_weak_volatility(v, b, c);
-			};
-		auto check_path_volatility =
-			[&check_volatility](const Vec3& v1, const Vec3& v2, const Bot& b, const Command& c){
-				for(int i = std::min(v1.z, v2.z); i <= std::max(v1.z, v2.z); ++i){
-					for(int j = std::min(v1.y, v2.y); j <= std::max(v1.y, v2.y); ++j){
-						for(int k = std::min(v1.x, v2.x); k <= std::max(v1.x, v2.x); ++k){
-							check_volatility(Vec3(k, j, i), b, c);
-						}
-					}
-				}
-			};
-		Harmonics harmonics = m_harmonics;
-		for(size_t i = 0; i < m_bots.size(); ++i){
-			const auto& b = m_bots[i];
-			const auto& c = m_pending_commands[i];
-			if(c.type == CommandType::Wait){
-				check_volatility(b.pos, b, c);
-			}else if(c.type == CommandType::Flip){
-				harmonics = flip(harmonics);
-				check_volatility(b.pos, b, c);
-			}else if(c.type == CommandType::SMove){
-				check_path_volatility(b.pos, b.pos + c.smove_lld(), b, c);
-			}else if(c.type == CommandType::LMove){
-				check_path_volatility(b.pos,                  b.pos + c.lmove_sld1(), b, c);
-				check_path_volatility(b.pos + c.lmove_sld1(), b.pos + c.lmove_sld2(), b, c);
-			}else if(c.type == CommandType::Fission){
-				check_volatility(b.pos, b, c);
-				check_volatility(b.pos + c.fission_nd(), b, c);
-			}else if(c.type == CommandType::Fill){
-				check_volatility(b.pos, b, c);
-				check_weak_volatility(b.pos + c.fill_nd(), b, c);
-			}else if(c.type == CommandType::Empty){
-				check_volatility(b.pos, b, c);
-				check_weak_volatility(b.pos + c.empty_nd(), b, c);
-			}else if(c.type == CommandType::FusionP){
-				check_volatility(b.pos, b, c);
-			}else if(c.type == CommandType::FusionS){
-				check_volatility(b.pos, b, c);
-			}
-		}
-		// validation: grounded or ungrounded
-		if(harmonics == Harmonics::Low){
-			/*
-			const int r = m_matrix.size();
-			VoxelGrid grounded(r);
-			std::queue<Vec3> q;
-			*/
-		}
-#endif
 		// allocate next command buffer
 		std::vector<Command> new_pending_commands(new_bots.size());
 		// update trace
@@ -766,12 +597,6 @@ public:
 			c.write_binary(ofs);
 		}
 		ofs.close();
-	}
-
-	void dump_pending_commands(std::ostream& os) const {
-		for(size_t i = 0; i < m_bots.size(); ++i){
-			os << m_bots[i] << ": " << m_pending_commands[i] << std::endl;
-		}
 	}
 
 };
