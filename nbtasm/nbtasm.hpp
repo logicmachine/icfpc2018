@@ -246,9 +246,7 @@ struct Command {
 
 inline std::ostream& operator<<(std::ostream& os, const Command& c){
 	os << "Command{ ";
-	if(c.type == CommandType::Empty){
-		os << "type=Empty";
-	}else if(c.type == CommandType::Halt){
+	if(c.type == CommandType::Halt){
 		os << "type=Halt";
 	}else if(c.type == CommandType::Wait){
 		os << "type=Wait";
