@@ -726,7 +726,7 @@ public:
 		ofs.close();
 	}
 
-	void dump_pending_commands(std::ostream& os){
+	void dump_pending_commands(std::ostream& os) const {
 		for(size_t i = 0; i < m_bots.size(); ++i){
 			os << m_bots[i] << ": " << m_pending_commands[i] << std::endl;
 		}
