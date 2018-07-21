@@ -3,12 +3,14 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <tuple>
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
 #include <memory>
 #include <cstdint>
+
 
 enum class Harmonics { Low, High };
 
@@ -312,13 +314,49 @@ static inline void format_seeds(std::ostream& os, uint32_t s){
 	os << ")";
 }
 
+}
+
+struct Bot {
+	int bid;
+	Vec3 pos;
+	uint32_t seeds;
+};
+
+std::ostream& operator<<(std::ostream& os, const Bot& b){
+	os << "Bot{ bid=" << b.bid << ", pos=" << b.pos << ", seeds=";
+	detail::format_seeds(os, b.seeds);
+	return os << " }";
+}
+
+
+struct CommandError : public std::logic_error {
+	Bot bot;
+	Command command;
+
+	static std::string make_message(
+		const Bot& bot, const Command& command, const std::string& message)
+	{
+		std::ostringstream oss;
+		oss << message << " (bot = " << bot << ", command = " << command << ")";
+		return oss.str();
+	}
+
+	CommandError(Bot bot, Command command, const std::string& message)
+		: std::logic_error(make_message(bot, command, message))
+		, bot(bot)
+		, command(command)
+	{ }
+};
+
 static inline bool test_near_distance(const Vec3& v) noexcept {
 	if(abs(v.x) >= 2 || abs(v.y) >= 2 || abs(v.z) >= 2){ return false; }
 	if(abs(v.x) + abs(v.y) + abs(v.z) > 2){ return false; }
 	return true;
 }
-static inline void throw_test_near_distance(const Vec3& v){
-	if(!test_near_distance(v)){ throw std::runtime_error("invalid nd"); }
+static inline void throw_test_near_distance(const Vec3& v, const Bot& b, const Command& c){
+	if(!test_near_distance(v)){
+		throw CommandError(b, c, "invalid near distance");
+	}
 }
 
 static inline bool test_short_distance(const Vec3& v) noexcept {
@@ -327,8 +365,10 @@ static inline bool test_short_distance(const Vec3& v) noexcept {
 	if(v.x == 0 && v.y == 0){ return -5 <= v.z && v.z <= 5; }
 	return false;
 }
-static inline void throw_test_short_distance(const Vec3& v){
-	if(!test_short_distance(v)){ throw std::runtime_error("invalid sld"); }
+static inline void throw_test_short_distance(const Vec3& v, const Bot& b, const Command& c){
+	if(!test_short_distance(v)){
+		throw CommandError(b, c, "invalid short linear distance");
+	}
 }
 
 static inline bool test_long_distance(const Vec3& v) noexcept {
@@ -337,28 +377,23 @@ static inline bool test_long_distance(const Vec3& v) noexcept {
 	if(v.x == 0 && v.y == 0){ return -15 <= v.z && v.z <= 15; }
 	return false;
 }
-static inline void throw_test_long_distance(const Vec3& v){
-	if(!test_long_distance(v)){ throw std::runtime_error("invalid lld"); }
+static inline void throw_test_long_distance(const Vec3& v, const Bot& b, const Command& c){
+	if(!test_long_distance(v)){
+		throw CommandError(b, c, "invalid long linear distance");
+	}
 }
 
 static inline bool test_position_range(int r, const Vec3& v) noexcept {
 	return (0 <= v.x && v.x < r) && (0 <= v.y && v.y < r) && (0 <= v.z && v.z < r);
 }
-static inline void throw_test_position_range(int r, const Vec3& v){
-	if(!test_position_range(r, v)){ throw std::runtime_error("position out of range"); }
-}
-
+static inline void throw_test_position_range(int r, const Vec3& v, const Bot& b, const Command& c){
+	if(!test_position_range(r, v)){
+		throw CommandError(b, c, "position out of range");
+	}
 }
 
 
 class State {
-
-private:
-	struct Bot {
-		int bid;
-		Vec3 pos;
-		uint32_t seeds;
-	};
 
 public:
 	class ConstBotReference {
@@ -396,47 +431,56 @@ public:
 		void wait(){ m_command = Command(CommandType::Wait); }
 		void flip(){ m_command = Command(CommandType::Flip); }
 		void smove(const Vec3& lld){
-			detail::throw_test_long_distance(lld);
-			detail::throw_test_position_range(m_state.matrix().size(), m_bot.pos + lld);
-			m_command = Command(CommandType::SMove)
+			const auto c = Command(CommandType::SMove)
 				.smove_lld(lld);
+			throw_test_long_distance(lld, m_bot, c);
+			throw_test_position_range(
+				m_state.matrix().size(), m_bot.pos + lld, m_bot, c);
+			m_command = c;
 		}
 		void lmove(const Vec3& sld1, const Vec3& sld2){
-			detail::throw_test_short_distance(sld1);
-			detail::throw_test_short_distance(sld2);
-			detail::throw_test_position_range(m_state.matrix().r(), m_bot.pos + sld1 + sld2);
-			m_command = Command(CommandType::LMove)
+			const auto c = Command(CommandType::LMove)
 				.lmove_sld1(sld1)
 				.lmove_sld2(sld2);
+			throw_test_short_distance(sld1, m_bot, c);
+			throw_test_short_distance(sld2, m_bot, c);
+			throw_test_position_range(
+				m_state.matrix().r(), m_bot.pos + sld1 + sld2, m_bot, c);
+			m_command = c;
 		}
 		int fission(const Vec3& nd, int m){
-			detail::throw_test_near_distance(nd);
-			const int n = __builtin_popcount(m_bot.seeds);
-			if(m < 0 || n < m + 1){ throw std::runtime_error("fission: invalid m"); }
-			m_command = Command(CommandType::Fission)
+			const auto c = Command(CommandType::Fission)
 				.fission_nd(nd)
 				.fission_m(m);
+			throw_test_near_distance(nd, m_bot, c);
+			const int n = __builtin_popcount(m_bot.seeds);
+			if(m < 0 || n < m + 1){ throw CommandError(m_bot, c, "invalid m"); }
+			m_command = c;
 			return __builtin_ctz(m_bot.seeds);
 		}
 		void fill(const Vec3& nd){
-			detail::throw_test_near_distance(nd);
-			m_command = Command(CommandType::Fill)
+			const auto c = Command(CommandType::Fill)
 				.fill_nd(nd);
+			throw_test_near_distance(nd, m_bot, c);
+			m_command = c;
 		}
 		void empty(const Vec3& nd){
-			detail::throw_test_near_distance(nd);
-			m_command = Command(CommandType::Empty)
+			const auto c = Command(CommandType::Empty)
 				.empty_nd(nd);
+			throw_test_near_distance(nd, m_bot, c);
+			m_command = c;
 		}
 		void fusion_p(const Vec3& nd){
-			detail::throw_test_near_distance(nd);
-			m_command = Command(CommandType::FusionP)
+			const auto c = Command(CommandType::FusionP)
 				.fusion_nd(nd);
+			throw_test_near_distance(nd, m_bot, c);
+			m_command = c;
 		}
 		void fusion_s(const Vec3& nd){
-			detail::throw_test_near_distance(nd);
-			m_command = Command(CommandType::FusionS)
+			const auto c = Command(CommandType::FusionS)
 				.fusion_nd(nd);
+			throw_test_near_distance(nd, m_bot, c);
+			m_command = c;
 		}
 
 		void exec(const Command& cmd){
@@ -487,7 +531,7 @@ public:
 		, m_max_num_bots(max_num_bots)
 	{ }
 
-	int energy() const noexcept { return m_energy; }
+	int64_t energy() const noexcept { return m_energy; }
 	Harmonics harmonics() const noexcept { return m_harmonics; }
 
 	const VoxelGrid& matrix() const noexcept { return m_matrix; }
@@ -545,18 +589,85 @@ public:
 				new_bots.push_back(b);
 			}else if(c.type == CommandType::FusionP){
 				const auto it = pos2idx.find(b.pos + c.fusion_nd());
-				if(it == pos2idx.end()){ throw std::runtime_error("unmatched fusion"); }
+				if(it == pos2idx.end()){ throw CommandError(b, c, "unmatched fusion"); }
 				const auto& secondary = m_bots[it->second];
+				const auto& c2 = m_pending_commands[it->second];
+				if(c2.type != CommandType::FusionS){ throw CommandError(b, c, "unmatched fusion"); }
+				if(c2.fusion_nd() != -c.fusion_nd()){ throw CommandError(b, c, "unmatched fusion"); }
 				new_bots.push_back(Bot{ b.bid, b.pos, b.seeds | secondary.seeds | (1u << secondary.bid) });
 			}else if(c.type == CommandType::FusionS){
 				const auto it = pos2idx.find(b.pos + c.fusion_nd());
-				if(it == pos2idx.end()){ throw std::runtime_error("unmatched fusion"); }
+				if(it == pos2idx.end()){ throw CommandError(b, c, "unmatched fusion"); }
+				const auto& c2 = m_pending_commands[it->second];
+				if(c2.type != CommandType::FusionP){ throw CommandError(b, c, "unmatched fusion"); }
+				if(c2.fusion_nd() != -c.fusion_nd()){ throw CommandError(b, c, "unmatched fusion"); }
 			}
 		}
 		// sort by bid
 		std::sort(
 			new_bots.begin(), new_bots.end(),
 			[](const Bot& a, const Bot& b){ return a.bid < b.bid; });
+#ifdef STRONG_VALIDATION
+		// validation: check volatility
+		std::unordered_map<Vec3, int> volatility_map;
+		auto check_volatility = [this, &volatility_map](const Vec3& v, const Bot& b, const Command& c){
+			if(m_matrix(v.z, v.y, v.x)){ throw CommandError(b, c, "volatility violation (filled voxel)"); }
+			const auto it = volatility_map.find(v);
+			if(it == volatility_map.end()){
+				volatility_map.emplace(v, b.bid);
+			}else if(it->second != b.bid){
+				throw CommandError(
+					b, c, "volatility violation (voxels used by other bots: bid=" + std::to_string(it->second) + ")");
+			}
+		};
+		auto check_path_volatility =
+			[&check_volatility](const Vec3& v1, const Vec3& v2, const Bot& b, const Command& c){
+				for(int i = std::min(v1.z, v2.z); i <= std::max(v1.z, v2.z); ++i){
+					for(int j = std::min(v1.y, v2.y); j <= std::max(v1.y, v2.y); ++j){
+						for(int k = std::min(v1.x, v2.x); k <= std::max(v1.x, v2.x); ++k){
+							check_volatility(Vec3(k, j, i), b, c);
+						}
+					}
+				}
+			};
+		Harmonics harmonics = m_harmonics;
+		for(size_t i = 0; i < m_bots.size(); ++i){
+			const auto& b = m_bots[i];
+			const auto& c = m_pending_commands[i];
+			if(c.type == CommandType::Wait){
+				check_volatility(b.pos, b, c);
+			}else if(c.type == CommandType::Flip){
+				harmonics = flip(harmonics);
+				check_volatility(b.pos, b, c);
+			}else if(c.type == CommandType::SMove){
+				check_path_volatility(b.pos, b.pos + c.smove_lld(), b, c);
+			}else if(c.type == CommandType::LMove){
+				check_path_volatility(b.pos,                  b.pos + c.lmove_sld1(), b, c);
+				check_path_volatility(b.pos + c.lmove_sld1(), b.pos + c.lmove_sld2(), b, c);
+			}else if(c.type == CommandType::Fission){
+				check_volatility(b.pos,                  b, c);
+				check_volatility(b.pos + c.fission_nd(), b, c);
+			}else if(c.type == CommandType::Fill){
+				check_volatility(b.pos,               b, c);
+				check_volatility(b.pos + c.fill_nd(), b, c);
+			}else if(c.type == CommandType::Empty){
+				check_volatility(b.pos,                b, c);
+				check_volatility(b.pos + c.empty_nd(), b, c);
+			}else if(c.type == CommandType::FusionP){
+				check_volatility(b.pos, b, c);
+			}else if(c.type == CommandType::FusionS){
+				check_volatility(b.pos, b, c);
+			}
+		}
+		// validation: grounded or ungrounded
+		if(harmonics == Harmonics::Low){
+			/*
+			const int r = m_matrix.size();
+			VoxelGrid grounded(r);
+			std::queue<Vec3> q;
+			*/
+		}
+#endif
 		// allocate next command buffer
 		std::vector<Command> new_pending_commands(new_bots.size());
 		// update trace
@@ -610,6 +721,12 @@ public:
 			c.write_binary(ofs);
 		}
 		ofs.close();
+	}
+
+	void dump_pending_commands(std::ostream& os){
+		for(size_t i = 0; i < m_bots.size(); ++i){
+			os << m_bots[i] << ": " << m_pending_commands[i] << std::endl;
+		}
 	}
 
 };
