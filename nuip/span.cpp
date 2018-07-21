@@ -60,7 +60,7 @@ public:
 		}
 	}
 
-	const set<Vec3>& getLeaves(){ return leaves;}
+	const set<Vec3>& getLeaves()const{ return leaves;}
 
 	void eraseLeaf(Vec3 leaf){
 		assert(leaves.count(leaf));
