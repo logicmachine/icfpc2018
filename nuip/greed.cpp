@@ -132,10 +132,10 @@ public:
 };
 
 void dump(const State& s){
-	for(size_t i = 0; i < s.num_bots(); ++i){
-		std::cout << i << ": " << s.bots(i) << std::endl;
-	}
-	std::cout << std::endl;
+	// for(size_t i = 0; i < s.num_bots(); ++i){
+	// 	std::cout << i << ": " << s.bots(i) << std::endl;
+	// }
+	// std::cout << std::endl;
 }
 
 Vec3 hunt(const Tree &v,const Vec3 p){
@@ -156,7 +156,9 @@ vector<Vec3> move(const Tree &g,const VoxelGrid &v,const Vec3 p){
 	set<Vec3> vst; vst.insert(p);
 	map<Vec3,Vec3> prv; prv[p]=Vec3{-1,-1,-1};
 	while(que.size()){
+		out(que.size(),v.r(),1);
 		Vec3 p=que.front();
+		que.pop();
 		rep(d,6){
 			int nx=p.x, ny=p.y, nz=p.z;
 			rep(i,15){
@@ -190,10 +192,13 @@ int main(int argc, char* argv[]){
 	State s(v, 20);
 	Tree g(v);
 	while(g.getLeaves().begin()->x>=0){
-		for(auto p:g.getLeaves()) cout<<p<<",";cout<<endl;
+		//for(auto p:g.getLeaves()) cout<<p<<",";cout<<endl;
+		out(g.getLeaves().size(),1);
 		Vec3 tar=hunt(g,s.bots(0).pos());
+		out(tar,1);
 		if(tar==Vec3{0,0,0}){
 			auto vec=move(g,s.matrix(),s.bots(0).pos());
+			out(vec.size(),1);
 			reps(i,1,vec.size()){
 				s.bots(0).smove(vec[i]-vec[i-1]);
 				s.commit();
@@ -227,7 +232,15 @@ int main(int argc, char* argv[]){
 	s.bots(0).halt();
 	s.commit();
 	dump(s);
-	
-	export_backward_trace("trace.nbt", s);
+
+	string file(argv[1]);
+	{
+		int n=file.size();
+		rrep(i,n)if(file[i]=='/'){
+			file=file.substr(i+1);
+			break;
+		}
+	}
+	export_backward_trace((file.substr(0,5)+".nbt").c_str(), s);
 return 0;
 }
