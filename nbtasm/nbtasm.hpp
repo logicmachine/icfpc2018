@@ -38,6 +38,13 @@ struct Vec3 {
 	Vec3& operator+=(const Vec3& v) noexcept { x += v.x; y += v.y; z += v.z; return *this; }
 	Vec3& operator-=(const Vec3& v) noexcept { x -= v.x; y -= v.y; z -= v.z; return *this; }
 
+	Vec3 operator*(int s) const noexcept { return Vec3{ x * s, y * s, z * s }; }
+	Vec3& operator*=(int s) noexcept { x *= s; y *= s; z *= s; return *this; }
+
+	bool region_check(int r) const noexcept {
+		return 0 <= x && x < r && 0 <= y && y < r && 0 <= z && z < r;
+	}
+
 	int mlen() const noexcept { return abs(x) + abs(y) + abs(z); }
 
 	unsigned int encode_near_distance() const noexcept {
