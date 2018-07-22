@@ -159,7 +159,7 @@ vector<Vec3> move(const Tree &g,const VoxelGrid &v,const set<Vec3> &ban,const Ve
 	set<Vec3> vst; vst.insert(p);
 	map<Vec3,Vec3> prv; prv[p]=Vec3{-1,-1,-1};
 	while(que.size()){
-		out(que.size(),v.r(),1);
+		//out(que.size(),v.r(),1);
 		Vec3 p=que.front();
 		que.pop();
 		// vector<int> ds(6); iota(all(ds),0); random_shuffle(all(ds));
@@ -266,7 +266,7 @@ int main(int argc, char* argv[]){
 		//for(auto p:g.getLeaves()) cout<<p<<",";cout<<endl;
 		set<Vec3> ban;
 		auto banInt=[&ban](Vec3 a,Vec3 b){
-									out(a,b,1);
+									//out(a,b,1);
 									reps(x,min(a.x,b.x),max(a.x,b.x)+1)
 									reps(y,min(a.y,b.y),max(a.y,b.y)+1)
 									reps(z,min(a.z,b.z),max(a.z,b.z)+1)
@@ -275,10 +275,10 @@ int main(int argc, char* argv[]){
 		rep(i,N) ban.insert(s.bots(i).pos());
 		rep(i,N){
 			Vec3 tar=hunt(g,ban,s.bots(i).pos());
-			out(tar,1);
+			//out(tar,1);
 			if(tar!=Vec3{0,0,0}){
 				auto tmp=s.bots(i).pos()+tar;
-				out("eat",i,s.bots(i).pos()+tar,ban.count(tmp),v(tmp.z,tmp.y,tmp.x)==1,s.matrix(tmp.z,tmp.y,tmp.x)==1,1);
+				//out("eat",i,s.bots(i).pos()+tar,ban.count(tmp),v(tmp.z,tmp.y,tmp.x)==1,s.matrix(tmp.z,tmp.y,tmp.x)==1,1);
 				s.bots(i).empty(tar); ban.emplace(s.bots(i).pos()+tar);
 				g.eraseLeaf(s.bots(i).pos()+tar);
 				continue;
@@ -416,6 +416,6 @@ BRK:
 		}
 	}
 	//export_backward_trace((file.substr(0,5)+".nbt").c_str(), s);
-	export_backward_trace((file.substr(0,5)+".nbt").c_str(), s);
+	s.export_trace((file.substr(0,5)+".nbt").c_str());
 	return 0;
 }
