@@ -1,12 +1,16 @@
 ## 使い方
 * 後でちゃんと書く
+* Firefoxだと動かない？
 
 ## 
 * `pip selenium`
 * Chromeの場合は、`score_calculator.py` と同じフォルダにchrome driverを入れる。
  * リンク: http://chromedriver.chromium.org/downloads
-* firefoxの場合は、`score_calculator.py`と同じフォルダに gecko driverを入れる。
- * https://github.com/mozilla/geckodriver/releases
+ * Chromeの場合は、`self.driver = webdriver.Chrome("./chromedriver.exe")`のコメントアウトを外し、`driver = webdriver.Firefox()`をコメントアウトする
+* <i?firefoxの場合は、`score_calculator.py`と同じフォルダに gecko driverを入れる。</i>
+ * <i>https://github.com/mozilla/geckodriver/releases</i>
+ * <i>firefoxの場合は、`driver = webdriver.Firefox()`のコメントアウトを外し、`self.driver = webdriver.Chrome("./chromedriver.exe")`をコメントアウトする</i>
+
 
  ## ソースコード内の設定項目
 

@@ -17,8 +17,8 @@ from selenium.webdriver.support.ui import Select
 kSteps = 90
 
 kProblemDir = "problemsF"
-kNBTDir = "tmp"
-#kNBTDir = "dfltTracesF"
+kNBTDir = "dfltTracesF"
+kIsChrome = True
 
 class Result:
     def __init__(self, result):
@@ -81,13 +81,21 @@ class Result:
 class PageConfig:
     def __init__(self, ):
         self.vis = True
+        self.is_chrome = kIsChrome
 
         self.current_dir = os.getcwd()
-        self.current_dir = self.current_dir.replace('\\', '/')
-        print(self.current_dir)
 
-        self.driver = webdriver.Chrome("./chromedriver.exe")
-        #driver = webdriver.Firefox()
+        if self.is_chrome:
+            self.current_dir = self.current_dir.replace('\\', '/')
+            self.path_char = '/'
+        else :
+            self.path_char = '\\'
+            self.current_dir = self.current_dir.replace('/', '\\')
+
+        if self.is_chrome:
+            self.driver = webdriver.Chrome("./chromedriver.exe")
+        else :
+            self.driver = webdriver.Firefox()
 
         if self.vis:
             self.driver.get("https://icfpcontest2018.github.io/full/exec-trace.html")
@@ -162,10 +170,10 @@ class PageConfig:
     def set_in_file(self, ploblem_class, num):
         self.set_problem_class(problem_class)
         if (problem_class == "FD" or problem_class == "FR"):
-            page.srcModelFileIn.send_keys(self.current_dir + "/" + kProblemDir + "/" + ploblem_class + num + "_src.mdl")
+            page.srcModelFileIn.send_keys(self.current_dir + self.path_char + kProblemDir + self.path_char + ploblem_class + num + "_src.mdl")
         if (problem_class == "FA" or problem_class == "FR"):
-            page.tgtModelFileIn.send_keys(self.current_dir + "/" + kProblemDir + "/" + problem_class + num + "_tgt.mdl")
-        page.traceFileIn.send_keys(self.current_dir + "/" + kNBTDir + "/" + problem_class + num + ".nbt")
+            page.tgtModelFileIn.send_keys(self.current_dir + self.path_char + kProblemDir + self.path_char + problem_class + num + "_tgt.mdl")
+        page.traceFileIn.send_keys(self.current_dir + self.path_char + kNBTDir + self.path_char + problem_class + num + ".nbt")
 
     def get_result(self):
         return Result(self.stdout.text)
@@ -200,12 +208,12 @@ tgt_or_src = [["tgt"],["src"],["tgt", "src"]]
 
 # range is [)
 #rangies = [[1, 186], [1, 186], [1, 115]]
-rangies = [[1, 20], [1, 167], [1, 20]]
+rangies = [[1, 5], [1, 5], [1, 5]]
 
 # writer.writerow(["FA/FD/FR", "Case No", "status", "time", "commands", "energy"])
 
 # for q in range(0, 3):
-for q in range(1, 2):
+for q in range(0, 3):
     r = rangies[q]
     problem_class = queries[q]
     for i in range(r[0], r[1]+1):
@@ -233,15 +241,4 @@ exit()
 file_form = driver.find_element_by_id("modelFileIn")
 button = driver.find_element(By.XPATH, '//button')
 stdout = driver.find_element_by_id("stdout")
-
-
-#os.mkdir("C:/Users/tsakai/Downloads/folder/FA")
-#os.mkdir("C:/Users/tsakai/Downloads/folder/FA/front_tgt/")
-
-#os.mkdir("C:/Users/tsakai/Downloads/folder/FD")
-#os.mkdir("C:/Users/tsakai/Downloads/folder/FD/front_src/")
-
-#os.mkdir("C:/Users/tsakai/Downloads/folder/FR")
-#os.mkdir("C:/Users/tsakai/Downloads/folder/FR/front_src/")
-#os.mkdir("C:/Users/tsakai/Downloads/folder/FR/front_tgt/")
 
