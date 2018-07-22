@@ -941,7 +941,7 @@ public:
 		: m_energy(0)
 		, m_harmonics(Harmonics::Low)
 		, m_matrix(initial)
-		, m_bots(1, Bot{ 1, Vec3(0, 0, 0), (((1u << (max_num_bots - 1)) - 1) << 2) })
+		, m_bots(1, Bot{ 1, Vec3(0, 0, 0), (((1ull << (max_num_bots - 1)) - 1) << 2) })
 		, m_trace()
 		, m_pending_commands(1)
 		, m_max_num_bots(max_num_bots)
