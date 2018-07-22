@@ -47,7 +47,9 @@ int main(int argc, char**argv){
     } else if (a.first == decoder::CommandType::Fill){
     } else if (a.first == decoder::CommandType::Void){
       print(fout, "Void", a.second);
-    } else {
+    } else if (a.first == decoder::CommandType::GFill){
+      print(fout, "GFill", a.second);
+    }else {
       //print("EMPTY", a.second);
       break;
     }
