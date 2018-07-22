@@ -170,9 +170,12 @@ class PageConfig:
     def set_in_file(self, ploblem_class, num):
         self.set_problem_class(problem_class)
         if (problem_class == "FD" or problem_class == "FR"):
+            page.srcModelFileIn.clear()
             page.srcModelFileIn.send_keys(self.current_dir + self.path_char + kProblemDir + self.path_char + ploblem_class + num + "_src.mdl")
         if (problem_class == "FA" or problem_class == "FR"):
+            page.tgtModelFileIn.clear()
             page.tgtModelFileIn.send_keys(self.current_dir + self.path_char + kProblemDir + self.path_char + problem_class + num + "_tgt.mdl")
+        page.traceFileIn.clear()
         page.traceFileIn.send_keys(self.current_dir + self.path_char + kNBTDir + self.path_char + problem_class + num + ".nbt")
 
     def get_result(self):

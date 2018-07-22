@@ -1,19 +1,17 @@
 ## 使い方
 * 後でちゃんと書く
-* Firefoxだと動かない？
+* win10 + Firefox/Chrome + python3.7 で動かした。
 
 ## 
 * `pip selenium`
 * Chromeの場合は、`score_calculator.py` と同じフォルダにchrome driverを入れる。
  * リンク: http://chromedriver.chromium.org/downloads
- * Chromeの場合は、`self.driver = webdriver.Chrome("./chromedriver.exe")`のコメントアウトを外し、`driver = webdriver.Firefox()`をコメントアウトする
-* <s> firefoxの場合は、score_calculator.pyと同じフォルダに gecko driverを入れる。</s>
- * <s>https://github.com/mozilla/geckodriver/releases</s>
- * <s>firefoxの場合は、`driver = webdriver.Firefox()`のコメントアウトを外し、`self.driver = webdriver.Chrome("./chromedriver.exe")`をコメントアウトする</s>
+*  firefoxの場合は、score_calculator.pyと同じフォルダに gecko driverを入れる。
+ * https://github.com/mozilla/geckodriver/releases
 
 
  ## ソースコード内の設定項目
-
+* Chromeを使う場合は、kIsChrome = True。Firefoxを使う場合はkIsChrome = False。
 * self.vis: True / Falseを設定する。Trueの場合は、visualizer付で実行される。Falseの場合はvisualizerなしで実行される。
 * kProblemDir: 問題ファイルを置いているディレクトリ
 * kNBTDir: 結果ファイルを置いているディレクトリ
