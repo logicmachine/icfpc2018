@@ -167,7 +167,8 @@ public:
 //   }
 //   return ret;
 // }
-Vec3 isNextToLeaf(const set<Vec3> &leaf, Vec3 pos, int R){
+vector<Vec3> isNextToLeaf(const set<Vec3> &leaf, Vec3 pos, int R){
+	vector<Vec3> ret;
   for(int dz=-1; dz<=1; dz++){
     for(int dy=-1; dy<=1; dy++){
       for(int dx=-1; dx<=1; dx++){
@@ -177,11 +178,13 @@ Vec3 isNextToLeaf(const set<Vec3> &leaf, Vec3 pos, int R){
         int ddy = dy+pos.y;
         int ddx = dx+pos.x;
         if(ddz<0 || ddy<0 || ddx<0 || ddz>=R || ddy>=R || ddx>=R)continue;
-        if(leaf.count(Vec3(ddx, ddy, ddz))) return Vec3(ddx, ddy, ddz) - pos;
+        if(leaf.count(Vec3(ddx, ddy, ddz))){
+					ret.push_back(Vec3(ddx, ddy, ddz) - pos);
+				}
       }
     }
   }
-	return Vec3(-300, -300, -300);
+	return ret;
 }
 
 
@@ -209,8 +212,8 @@ void moveToLeaf(const set<Vec3> &leaf, State &s){
           assert(vst.count(nxt));
           prv[nxt] = p;
           que.push(nxt);
-          Vec3 res = isNextToLeaf(leaf, nxt, s.matrix().r());
-          if(res!=Vec3(-300, -300, -300)){
+          vector<Vec3> res = isNextToLeaf(leaf, nxt, s.matrix().r());
+          if(res.size()){
             vector<Vec3> root;
             for(Vec3 cur = nxt; cur.x>=0; cur=prv[cur]) root.push_back(cur);
             reverse(root.begin(), root.end());
@@ -294,14 +297,16 @@ int main(int argc, char* argv[]){
 							for(int d2_dist = 1; d2_dist<=5; d2_dist++){
 								mpos += dvec[d2];
 								if( not mpos.region_check(R) || s.matrix()(mpos.z, mpos.y, mpos.x))break;
-								Vec3 res = isNextToLeaf(graph.getLeaves(), mpos, R);
-								if( res != Vec3(-300, -300, -300) ){
+								vector<Vec3> res = isNextToLeaf(graph.getLeaves(), mpos, R);
+								if( res.size() ){
 									s.bots(0).lmove(dvec[d1]*d1_dist, dvec[d2]*d2_dist);
 									s.commit();
-									s.bots(0).empty(res);
-									s.commit();
-									graph.eraseLeaf(mpos+res, newLeaves);
-									return;
+									for(auto lf:res){
+										s.bots(0).empty(lf);
+										s.commit();
+										graph.eraseLeaf(mpos+lf, newLeaves);
+										return;
+									}
 								}
 							}
 						}
