@@ -35,7 +35,7 @@ static void export_backward_trace(const std::string& filename, const State& bwd)
 				int secondary_seeds_size = 0;
 				for(size_t k = 0; k < replay.num_bots(); ++k){
 					if(replay.bots(k).pos() == b.pos() + c.fusion_nd()){
-						secondary_seeds_size = __builtin_popcount(replay.bots(k).seeds());
+						secondary_seeds_size = __builtin_popcountll(replay.bots(k).seeds());
 					}
 				}
 				pos2cmd.back().emplace(
@@ -45,6 +45,18 @@ static void export_backward_trace(const std::string& filename, const State& bwd)
 						.fission_m(secondary_seeds_size));
 			}else if(c.type == CommandType::FusionS){
 				// nothing to do
+			}else if(c.type == CommandType::GFill){
+				pos2cmd.back().emplace(
+					b.pos(),
+					Command(CommandType::GEmpty)
+						.gempty_nd(c.gfill_nd())
+						.gempty_fd(c.gfill_fd()));
+			}else if(c.type == CommandType::GEmpty){
+				pos2cmd.back().emplace(
+					b.pos(),
+					Command(CommandType::GFill)
+						.gfill_nd(c.gempty_nd())
+						.gfill_fd(c.gempty_fd()));
 			}else{
 				pos2cmd.back().emplace(b.pos(), c);
 			}
