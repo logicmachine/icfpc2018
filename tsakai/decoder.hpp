@@ -27,6 +27,7 @@ namespace decoder{
       Fill,
       FusionP,
       FusionS,
+      Void,
       };
   
   // command to index =  [01234567]
@@ -176,8 +177,19 @@ namespace decoder{
       ret.first = CommandType::Fill;
       int nd = getVal(bits, 0, 4);
       option.emplace_back(getnd(nd));
-    } 
+    } else if ( isSame(bits, std::string("*****010"))){
+      //Void nd:
+      //std::cout << "Void" << std::endl;
+      //[«nd»5010]8
+      //For example, Void <1,0,1> pis encoded as [10111010].
+      ret.first = CommandType::Void;
+      int nd = getVal(bits, 0, 4);
+      option.emplace_back(getnd(nd));
+    }
 
+
+
+    
     ret.second = option;
     return ret;
   }
