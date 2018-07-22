@@ -25,8 +25,7 @@ struct Vec3 {
 	Vec3() : x(0), y(0), z(0) { }
 	Vec3(int x, int y, int z) : x(x), y(y), z(z) { }
 
-	bool operator==(const Vec3& v) const noexcept { return x == v.x && y == v.y && z == v.z; }
-	bool operator!=(const Vec3& v) const noexcept { return !(*this == v); }
+	bool operator==(const Vec3& v) const noexcept { return x == v.x && y == v.y && z == v.z; } bool operator!=(const Vec3& v) const noexcept { return !(*this == v); }
 
 	bool operator< (const Vec3& v) const noexcept { return std::make_tuple(x, y, z) <  std::make_tuple(v.x, v.y, v.z); }
 	bool operator<=(const Vec3& v) const noexcept { return std::make_tuple(x, y, z) <= std::make_tuple(v.x, v.y, v.z); }
@@ -38,6 +37,13 @@ struct Vec3 {
 	Vec3 operator-(const Vec3& v) const noexcept { return Vec3{ x - v.x, y - v.y, z - v.z }; }
 	Vec3& operator+=(const Vec3& v) noexcept { x += v.x; y += v.y; z += v.z; return *this; }
 	Vec3& operator-=(const Vec3& v) noexcept { x -= v.x; y -= v.y; z -= v.z; return *this; }
+
+	Vec3 operator*(int s) const noexcept { return Vec3{ x * s, y * s, z * s }; }
+	Vec3& operator*=(int s) noexcept { x *= s; y *= s; z *= s; return *this; }
+
+	bool region_check(int r) const noexcept {
+		return 0 <= x && x < r && 0 <= y && y < r && 0 <= z && z < r;
+	}
 
 	int mlen() const noexcept { return abs(x) + abs(y) + abs(z); }
 
@@ -102,6 +108,82 @@ namespace std {
 }
 
 
+struct Box {
+	Vec3 p, q;
+
+	Box() noexcept : p(), q() { }
+	Box(const Vec3& p, const Vec3& q) noexcept : p(p), q(q) { normalize(); }
+
+	void normalize() noexcept {
+		if(p.x > q.x){ std::swap(p.x, q.x); }
+		if(p.y > q.y){ std::swap(p.y, q.y); }
+		if(p.z > q.z){ std::swap(p.z, q.z); }
+	}
+
+	bool operator==(const Box& b) const noexcept { return p == b.p && q == b.q; }
+	bool operator!=(const Box& b) const noexcept { return !(*this == b); }
+
+	bool operator< (const Box& b) const noexcept { return std::make_pair(p, q) <  std::make_pair(b.p, b.q); }
+	bool operator<=(const Box& b) const noexcept { return std::make_pair(p, q) <= std::make_pair(b.p, b.q); }
+	bool operator> (const Box& b) const noexcept { return std::make_pair(p, q) >  std::make_pair(b.p, b.q); }
+	bool operator>=(const Box& b) const noexcept { return std::make_pair(p, q) >= std::make_pair(b.p, b.q); }
+
+	int dim() const noexcept {
+		const auto d = p - q;
+		return (d.x ? 1 : 0) + (d.y ? 1 : 0) + (d.z ? 1 : 0);
+	}
+
+	std::array<Vec3, 8> corners() const noexcept {
+		return {
+			Vec3(p.x, p.y, p.z), Vec3(p.x, p.y, q.z),
+			Vec3(p.x, q.y, p.z), Vec3(p.x, q.y, q.z),
+			Vec3(q.x, p.y, p.z), Vec3(q.x, p.y, q.z),
+			Vec3(q.x, q.y, p.z), Vec3(q.x, q.y, q.z),
+		};
+	}
+
+	bool contains(const Vec3& v) const noexcept {
+		return
+			(p.x <= v.x && v.x <= q.x) &&
+			(p.y <= v.y && v.y <= q.y) &&
+			(p.z <= v.z && v.z <= q.z);
+	}
+
+	bool overlap(const Box& b) const noexcept {
+		return
+			(q.x >= b.p.x && b.q.x >= p.x) &&
+			(q.y >= b.p.y && b.q.y >= p.y) &&
+			(q.z >= b.p.z && b.q.z >= p.z);
+	}
+
+	template <typename F>
+	void each(F&& f) const {
+		for(int i = q.z; i <= q.z; ++i){
+			for(int j = p.y; j <= q.y; ++j){
+				for(int k = p.x; k <= q.x; ++k){ f(i, j, k); }
+			}
+		}
+	}
+};
+
+inline std::ostream& operator<<(std::ostream& os, const Box& b){
+	return os << "(" << b.p << ", " << b.q << ")";
+}
+
+namespace std {
+	template <> struct hash<Box> {
+		using argument_type = Box;
+		using result_type = std::size_t;
+		result_type operator()(const argument_type& b) const noexcept {
+			result_type h = 0;
+			h = h * 1234567891u + std::hash<Vec3>()(b.p);
+			h = h * 1234567891u + std::hash<Vec3>()(b.q);
+			return h;
+		}
+	};
+}
+
+
 class VoxelGrid {
 
 private:
@@ -117,6 +199,25 @@ public:
 		: m_grid(r * r * r)
 		, m_r(r)
 	{ }
+
+	static VoxelGrid load_model(const char *filename){
+		std::ifstream ifs(filename, std::ios::in | std::ios::binary);
+		ifs.seekg(0, std::ios_base::end);
+		const auto tail_pos = ifs.tellg();
+		ifs.seekg(0, std::ios_base::beg);
+		const size_t size = (tail_pos - ifs.tellg()) * 8;
+		size_t r = 1;
+		while((r + 1) * (r + 1) * (r + 1) <= size){ ++r; }
+		VoxelGrid vg(r);
+		for(size_t i = 0; i < size; i += 8){
+			int c = ifs.get();
+			for(size_t k = i; k < i + 8 && k < r * r * r; ++k){
+				const size_t z = k % r, y = (k / r) % r, x = k / (r * r);
+				vg(z, y, x) = ((c >> (k - i)) & 1);
+			}
+		}
+		return vg;
+	}
 
 	uint8_t operator()(int i, int j, int k) const noexcept {
 		const int r = m_r;
@@ -551,6 +652,7 @@ public:
 				.fission_nd(nd)
 				.fission_m(m);
 			throw_test_near_distance(nd, m_bot, c);
+			throw_test_position_range(m_state.matrix().r(), m_bot.pos + nd, m_bot, c);
 			const int n = __builtin_popcountll(m_bot.seeds);
 			if(m < 0 || n < m + 1){ throw CommandError(m_bot, c, "invalid m"); }
 			m_command = c;
@@ -560,24 +662,28 @@ public:
 			const auto c = Command(CommandType::Fill)
 				.fill_nd(nd);
 			throw_test_near_distance(nd, m_bot, c);
+			throw_test_position_range(m_state.matrix().r(), m_bot.pos + nd, m_bot, c);
 			m_command = c;
 		}
 		void empty(const Vec3& nd){
 			const auto c = Command(CommandType::Empty)
 				.empty_nd(nd);
 			throw_test_near_distance(nd, m_bot, c);
+			throw_test_position_range(m_state.matrix().r(), m_bot.pos + nd, m_bot, c);
 			m_command = c;
 		}
 		void fusion_p(const Vec3& nd){
 			const auto c = Command(CommandType::FusionP)
 				.fusion_nd(nd);
 			throw_test_near_distance(nd, m_bot, c);
+			throw_test_position_range(m_state.matrix().r(), m_bot.pos + nd, m_bot, c);
 			m_command = c;
 		}
 		void fusion_s(const Vec3& nd){
 			const auto c = Command(CommandType::FusionS)
 				.fusion_nd(nd);
 			throw_test_near_distance(nd, m_bot, c);
+			throw_test_position_range(m_state.matrix().r(), m_bot.pos + nd, m_bot, c);
 			m_command = c;
 		}
 		void gfill(const Vec3& nd, const Vec3& fd){
@@ -586,6 +692,8 @@ public:
 				.gfill_fd(fd);
 			throw_test_near_distance(nd, m_bot, c);
 			throw_test_far_distance(fd, m_bot, c);
+			throw_test_position_range(m_state.matrix().r(), m_bot.pos + nd, m_bot, c);
+			throw_test_position_range(m_state.matrix().r(), m_bot.pos + nd + fd, m_bot, c);
 			m_command = c;
 		}
 		void gempty(const Vec3& nd, const Vec3& fd){
@@ -594,6 +702,8 @@ public:
 				.gempty_fd(fd);
 			throw_test_near_distance(nd, m_bot, c);
 			throw_test_far_distance(fd, m_bot, c);
+			throw_test_position_range(m_state.matrix().r(), m_bot.pos + nd, m_bot, c);
+			throw_test_position_range(m_state.matrix().r(), m_bot.pos + nd + fd, m_bot, c);
 			m_command = c;
 		}
 
@@ -604,6 +714,205 @@ public:
 
 
 private:
+	struct FusionPositionChecker {
+		std::unordered_map<Vec3, Vec3> primaries;
+		std::unordered_map<Vec3, Vec3> secondaries;
+
+		void push(const Bot& b, const Command& c){
+			if(c.type == CommandType::FusionP){
+				primaries.emplace(b.pos, b.pos + c.fusion_nd());
+			}else if(c.type == CommandType::FusionS){
+				secondaries.emplace(b.pos, b.pos + c.fusion_nd());
+			}
+		}
+
+		void throw_check(const Bot& b, const Command& c) const {
+			if(c.type == CommandType::FusionP){
+				const auto it = secondaries.find(b.pos + c.fusion_nd());
+				if(it == secondaries.end() || it->second != b.pos){
+					throw CommandError(b, c, "unmatched fusion");
+				}
+			}else if(c.type == CommandType::FusionS){
+				const auto it = primaries.find(b.pos + c.fusion_nd());
+				if(it == primaries.end() || it->second != b.pos){
+					throw CommandError(b, c, "unmatched fusion");
+				}
+			}
+		}
+	};
+
+	struct GFillPositionChecker {
+		std::unordered_map<Box, uint32_t> fill_flags;
+		std::unordered_map<Box, uint32_t> empty_flags;
+
+		void push(const Bot& b, const Command& c){
+			if(c.type == CommandType::GFill){
+				const auto p0 = b.pos + c.gfill_nd(), p1 = p0 + c.gfill_fd();
+				const auto box = Box(p0, p1);
+				const auto corners = box.corners();
+				uint32_t flags = fill_flags[box];
+				for(int c = 0; c < 8; ++c){
+					if(!(flags & (1u << c)) && corners[c] == p0){
+						flags |= (1u << c);
+						break;
+					}
+				}
+				fill_flags[box] = flags;
+			}else if(c.type == CommandType::GEmpty){
+				const auto p0 = b.pos + c.gfill_nd(), p1 = p0 + c.gfill_fd();
+				const auto box = Box(p0, p1);
+				const auto corners = box.corners();
+				uint32_t flags = empty_flags[box];
+				for(int c = 0; c < 8; ++c){
+					if(!(flags & (1u << c)) && corners[c] == p0){
+						flags |= (1u << c);
+						break;
+					}
+				}
+				empty_flags[box] = flags;
+			}
+		}
+
+		bool test_flags(uint32_t f) const noexcept {
+			if(f == 0x11 || f == 0x05 || f == 0x03){ return true; } // segment
+			if(f == 0x55 || f == 0x33 || f == 0x0f){ return true; } // plane
+			return (f == 0xff); // cube
+		}
+
+		void throw_check(const Bot& b, const Command& c) const {
+			if(c.type == CommandType::GFill){
+				const auto p0 = b.pos + c.gfill_nd(), p1 = p0 + c.gfill_fd();
+				const auto it = fill_flags.find(Box(p0, p1));
+				if(it == fill_flags.end() || !test_flags(it->second)){
+					throw CommandError(b, c, "unmatched gfill");
+				}
+			}else if(c.type == CommandType::GEmpty){
+				const auto p0 = b.pos + c.gfill_nd(), p1 = p0 + c.gfill_fd();
+				const auto it = empty_flags.find(Box(p0, p1));
+				if(it == empty_flags.end() || !test_flags(it->second)){
+					throw CommandError(b, c, "unmatched gempty");
+				}
+			}
+		}
+	};
+
+	struct InterferenceChecker {
+		std::unordered_map<Box, int> fill_boxes;
+		std::unordered_map<Vec3, int> bot_trace;
+
+		void push_path_trace(const Vec3& s, const Vec3& t, int bid){
+			Box(s, t).each([this, bid](int z, int y, int x){
+				bot_trace.emplace(Vec3(x, y, z), bid);
+			});
+		}
+
+		void push(const Bot& b, const Command& c){
+			if(c.type == CommandType::Wait){
+				bot_trace.emplace(b.pos, b.bid);
+			}else if(c.type == CommandType::Flip){
+				bot_trace.emplace(b.pos, b.bid);
+			}else if(c.type == CommandType::SMove){
+				push_path_trace(b.pos, b.pos + c.smove_lld(), b.bid);
+			}else if(c.type == CommandType::LMove){
+				const auto p0 = b.pos, p1 = p0 + c.lmove_sld1(), p2 = p1 + c.lmove_sld2();
+				push_path_trace(p0, p1, b.bid);
+				push_path_trace(p1, p2, b.bid);
+			}else if(c.type == CommandType::Fission){
+				bot_trace.emplace(b.pos, b.bid);
+				bot_trace.emplace(b.pos + c.fission_nd(), b.bid);
+			}else if(c.type == CommandType::Fill){
+				const auto p = b.pos + c.fill_nd();
+				bot_trace.emplace(b.pos, b.bid);
+				fill_boxes[Box(p, p)] = b.bid;
+			}else if(c.type == CommandType::Empty){
+				const auto p = b.pos + c.fill_nd();
+				bot_trace.emplace(b.pos, b.bid);
+				fill_boxes[Box(p, p)] = b.bid;
+			}else if(c.type == CommandType::FusionP){
+				bot_trace.emplace(b.pos, b.bid);
+			}else if(c.type == CommandType::FusionS){
+				bot_trace.emplace(b.pos, b.bid);
+			}else if(c.type == CommandType::GFill){
+				const auto fd = c.gfill_fd(), p0 = b.pos + c.gfill_nd(), p1 = p0 + fd;
+				bot_trace.emplace(b.pos, b.bid);
+				if(fd.x >= 0 && fd.y >= 0 && fd.z >= 0){ fill_boxes[Box(p0, p1)] = b.bid; }
+			}else if(c.type == CommandType::GEmpty){
+				const auto fd = c.gempty_fd(), p0 = b.pos + c.gempty_nd(), p1 = p0 + fd;
+				bot_trace.emplace(b.pos, b.bid);
+				if(fd.x >= 0 && fd.y >= 0 && fd.z >= 0){ fill_boxes[Box(p0, p1)] = b.bid; }
+			}
+		}
+
+		void throw_check_trace(
+			const Bot& b, const Command& c, const VoxelGrid& g, const Vec3& p) const
+		{
+			if(g(p.z, p.y, p.x)){ throw CommandError(b, c, "moving to a filled voxel"); }
+			const auto it = bot_trace.find(p);
+			if(it == bot_trace.end() || it->second == b.bid){ return; }
+			throw CommandError(
+				b, c,
+				"interference with " + std::to_string(b.bid) +
+				" and " + std::to_string(it->second));
+		}
+
+		void throw_check_path_trace(
+			const Bot& b, const Command& c, const VoxelGrid& g, const Vec3& s, const Vec3& t) const
+		{
+			Box(s, t).each([this, &b, &c, &g](int z, int y, int x){
+				throw_check_trace(b, c, g, Vec3(x, y, z));
+			});
+		}
+
+		void throw_check_fill_box(const Bot& b, const Command& c, const Box& x) const {
+			for(const auto& t : bot_trace){
+				if(!x.contains(t.first)){ continue; }
+				throw CommandError(
+					b, c, "filling/emptying a voxel that occupied by bot " + std::to_string(t.second));
+			}
+			for(const auto& t : fill_boxes){
+				if(t.second == b.bid || !x.overlap(t.first)){ continue; }
+				throw CommandError(b, c, "filling/emptying some voxels by multiple bots or groups");
+			}
+		}
+
+		void throw_check(const Bot& b, const Command& c, const VoxelGrid& g){
+			if(c.type == CommandType::Wait){
+				throw_check_trace(b, c, g, b.pos);
+			}else if(c.type == CommandType::Flip){
+				throw_check_trace(b, c, g, b.pos);
+			}else if(c.type == CommandType::SMove){
+				throw_check_path_trace(b, c, g, b.pos, b.pos + c.smove_lld());
+			}else if(c.type == CommandType::LMove){
+				const auto p0 = b.pos, p1 = p0 + c.lmove_sld1(), p2 = p1 + c.lmove_sld2();
+				throw_check_path_trace(b, c, g, p0, p1);
+				throw_check_path_trace(b, c, g, p1, p2);
+			}else if(c.type == CommandType::Fission){
+				throw_check_trace(b, c, g, b.pos);
+				throw_check_trace(b, c, g, b.pos + c.fission_nd());
+			}else if(c.type == CommandType::Fill){
+				const auto p = b.pos + c.fill_nd();
+				throw_check_trace(b, c, g, b.pos);
+				throw_check_fill_box(b, c, Box(p, p));
+			}else if(c.type == CommandType::Empty){
+				const auto p = b.pos + c.fill_nd();
+				throw_check_trace(b, c, g, b.pos);
+				throw_check_fill_box(b, c, Box(p, p));
+			}else if(c.type == CommandType::FusionP){
+				throw_check_trace(b, c, g, b.pos);
+			}else if(c.type == CommandType::FusionS){
+				throw_check_trace(b, c, g, b.pos);
+			}else if(c.type == CommandType::GFill){
+				const auto fd = c.gfill_fd(), p0 = b.pos + c.gfill_nd(), p1 = p0 + fd;
+				throw_check_trace(b, c, g, b.pos);
+				if(fd.x >= 0 && fd.y >= 0 && fd.z >= 0){ throw_check_fill_box(b, c, Box(p0, p1)); }
+			}else if(c.type == CommandType::GEmpty){
+				const auto fd = c.gempty_fd(), p0 = b.pos + c.gempty_nd(), p1 = p0 + fd;
+				throw_check_trace(b, c, g, b.pos);
+				if(fd.x >= 0 && fd.y >= 0 && fd.z >= 0){ throw_check_fill_box(b, c, Box(p0, p1)); }
+			}
+		}
+	};
+
 	int64_t m_energy;
 	Harmonics m_harmonics;
 	VoxelGrid m_matrix;
@@ -613,36 +922,6 @@ private:
 	std::vector<Command> m_pending_commands;
 
 	int m_max_num_bots;
-
-	bool test_gfill_validity(
-		const Bot& b, const Command& c,
-		const std::unordered_map<Vec3, size_t>& gnd2idx) const
-	{
-		auto extract_nd = [](const Command& c){
-			return c.type == CommandType::GFill ? c.gfill_nd() : c.gempty_nd();
-		};
-		auto extract_fd = [](const Command& c){
-			return c.type == CommandType::GFill ? c.gfill_fd() : c.gempty_fd();
-		};
-		const Vec3 origin = b.pos + extract_nd(c);
-		const Vec3 origin_fd = extract_fd(c);
-		for(int bits = 0; bits < 8; ++bits){
-			const Vec3 v(
-				origin.x + ((bits & 1) ? origin_fd.x : 0),
-				origin.y + ((bits & 2) ? origin_fd.y : 0),
-				origin.z + ((bits & 4) ? origin_fd.z : 0));
-			const auto it = gnd2idx.find(v);
-			if(it == gnd2idx.end()){ return false; }
-			const auto& c2 = m_pending_commands[it->second];
-			if(c2.type != c.type){ return false; }
-			const Vec3 u(
-				(bits & 1) ? -origin_fd.x : origin_fd.x,
-				(bits & 2) ? -origin_fd.y : origin_fd.y,
-				(bits & 4) ? -origin_fd.z : origin_fd.z);
-			if(extract_fd(c2) != u){ return false; }
-		}
-		return true;
-	}
 
 public:
 	State()
@@ -659,7 +938,7 @@ public:
 		: m_energy(0)
 		, m_harmonics(Harmonics::Low)
 		, m_matrix(size)
-		, m_bots(1, Bot{ 1, Vec3(0, 0, 0), (((1u << (max_num_bots - 1)) - 1) << 2) })
+		, m_bots(1, Bot{ 1, Vec3(0, 0, 0), (((1ull << (max_num_bots - 1)) - 1) << 2) })
 		, m_trace()
 		, m_pending_commands(1)
 		, m_max_num_bots(max_num_bots)
@@ -669,7 +948,7 @@ public:
 		: m_energy(0)
 		, m_harmonics(Harmonics::Low)
 		, m_matrix(initial)
-		, m_bots(1, Bot{ 1, Vec3(0, 0, 0), (((1u << (max_num_bots - 1)) - 1) << 2) })
+		, m_bots(1, Bot{ 1, Vec3(0, 0, 0), (((1ull << (max_num_bots - 1)) - 1) << 2) })
 		, m_trace()
 		, m_pending_commands(1)
 		, m_max_num_bots(max_num_bots)
@@ -709,17 +988,31 @@ public:
 	const std::vector<Command>& trace() const noexcept { return m_trace; }
 
 	void commit(){
+#ifdef STRONG_VALIDATION
+		FusionPositionChecker fusion_checker;
+		GFillPositionChecker gfill_checker;
+		InterferenceChecker interference_checker;
+		for(size_t i = 0; i < m_bots.size(); ++i){
+			const auto& b = m_bots[i];
+			const auto& c = m_pending_commands[i];
+			fusion_checker.push(b, c);
+			gfill_checker.push(b, c);
+			interference_checker.push(b, c);
+		}
+		for(size_t i = 0; i < m_bots.size(); ++i){
+			const auto& b = m_bots[i];
+			const auto& c = m_pending_commands[i];
+			fusion_checker.throw_check(b, c);
+			gfill_checker.throw_check(b, c);
+			interference_checker.throw_check(b, c, m_matrix);
+		}
+#endif
+
 		// build map to get bot from position for fusion
 		std::unordered_map<Vec3, size_t> pos2idx;
-		std::unordered_map<Vec3, size_t> gnd2idx;
 		for(size_t i = 0; i < m_bots.size(); ++i){
 			const auto& c = m_pending_commands[i];
 			pos2idx.emplace(m_bots[i].pos, i);
-			if(c.type == CommandType::GFill){
-				gnd2idx.emplace(m_bots[i].pos + c.gfill_nd(), i);
-			}else if(c.type == CommandType::GEmpty){
-				gnd2idx.emplace(m_bots[i].pos + c.gempty_nd(), i);
-			}
 		}
 		// process commands: create new bot list
 		std::vector<Bot> new_bots;
@@ -737,7 +1030,7 @@ public:
 			}else if(c.type == CommandType::Fission){
 				const auto sp = detail::split_seeds(b.seeds, c.fission_m() + 1);
 				new_bots.push_back(Bot{ b.bid, b.pos, sp.second });
-				const int new_bid = __builtin_ctz(sp.first);
+				const int new_bid = __builtin_ctzll(sp.first);
 				new_bots.push_back(Bot{ new_bid, b.pos + c.fission_nd(), sp.first & ~(1u << new_bid) });
 			}else if(c.type == CommandType::Fill){
 				new_bots.push_back(b);
@@ -747,21 +1040,10 @@ public:
 				const auto it = pos2idx.find(b.pos + c.fusion_nd());
 				if(it == pos2idx.end()){ throw CommandError(b, c, "unmatched fusion"); }
 				const auto& secondary = m_bots[it->second];
-				const auto& c2 = m_pending_commands[it->second];
-				if(c2.type != CommandType::FusionS){ throw CommandError(b, c, "unmatched fusion"); }
-				if(c2.fusion_nd() != -c.fusion_nd()){ throw CommandError(b, c, "unmatched fusion"); }
 				new_bots.push_back(Bot{ b.bid, b.pos, b.seeds | secondary.seeds | (1ull << secondary.bid) });
-			}else if(c.type == CommandType::FusionS){
-				const auto it = pos2idx.find(b.pos + c.fusion_nd());
-				if(it == pos2idx.end()){ throw CommandError(b, c, "unmatched fusion"); }
-				const auto& c2 = m_pending_commands[it->second];
-				if(c2.type != CommandType::FusionP){ throw CommandError(b, c, "unmatched fusion"); }
-				if(c2.fusion_nd() != -c.fusion_nd()){ throw CommandError(b, c, "unmatched fusion"); }
 			}else if(c.type == CommandType::GFill){
-				if(!test_gfill_validity(b, c, gnd2idx)){ throw CommandError(b, c, "unmatched gfill"); }
 				new_bots.push_back(b);
 			}else if(c.type == CommandType::GEmpty){
-				if(!test_gfill_validity(b, c, gnd2idx)){ throw CommandError(b, c, "unmatched gempty"); }
 				new_bots.push_back(b);
 			}
 		}
@@ -771,60 +1053,10 @@ public:
 			[](const Bot& a, const Bot& b){ return a.bid < b.bid; });
 #ifdef STRONG_VALIDATION
 		// validation: check volatility
-		// TODO gfill, gempty
-		std::unordered_map<Vec3, int> volatility_map;
-		auto check_weak_volatility = [this, &volatility_map](const Vec3& v, const Bot& b, const Command& c){
-			const auto it = volatility_map.find(v);
-			if(it == volatility_map.end()){
-				volatility_map.emplace(v, b.bid);
-			}else if(it->second != b.bid){
-				throw CommandError(
-					b, c, "volatility violation (voxels used by other bots: bid=" + std::to_string(it->second) + ")");
-			}
-		};
-		auto check_volatility =
-			[this, &check_weak_volatility](const Vec3& v, const Bot& b, const Command& c){
-				if(m_matrix(v.z, v.y, v.x)){ throw CommandError(b, c, "volatility violation (filled voxel)"); }
-				check_weak_volatility(v, b, c);
-			};
-		auto check_path_volatility =
-			[&check_volatility](const Vec3& v1, const Vec3& v2, const Bot& b, const Command& c){
-				for(int i = std::min(v1.z, v2.z); i <= std::max(v1.z, v2.z); ++i){
-					for(int j = std::min(v1.y, v2.y); j <= std::max(v1.y, v2.y); ++j){
-						for(int k = std::min(v1.x, v2.x); k <= std::max(v1.x, v2.x); ++k){
-							check_volatility(Vec3(k, j, i), b, c);
-						}
-					}
-				}
-			};
 		Harmonics harmonics = m_harmonics;
 		for(size_t i = 0; i < m_bots.size(); ++i){
-			const auto& b = m_bots[i];
 			const auto& c = m_pending_commands[i];
-			if(c.type == CommandType::Wait){
-				check_volatility(b.pos, b, c);
-			}else if(c.type == CommandType::Flip){
-				harmonics = flip(harmonics);
-				check_volatility(b.pos, b, c);
-			}else if(c.type == CommandType::SMove){
-				check_path_volatility(b.pos, b.pos + c.smove_lld(), b, c);
-			}else if(c.type == CommandType::LMove){
-				check_path_volatility(b.pos,                  b.pos + c.lmove_sld1(), b, c);
-				check_path_volatility(b.pos + c.lmove_sld1(), b.pos + c.lmove_sld2(), b, c);
-			}else if(c.type == CommandType::Fission){
-				check_volatility(b.pos, b, c);
-				check_volatility(b.pos + c.fission_nd(), b, c);
-			}else if(c.type == CommandType::Fill){
-				check_volatility(b.pos, b, c);
-				check_weak_volatility(b.pos + c.fill_nd(), b, c);
-			}else if(c.type == CommandType::Empty){
-				check_volatility(b.pos, b, c);
-				check_weak_volatility(b.pos + c.empty_nd(), b, c);
-			}else if(c.type == CommandType::FusionP){
-				check_volatility(b.pos, b, c);
-			}else if(c.type == CommandType::FusionS){
-				check_volatility(b.pos, b, c);
-			}
+			if(c.type == CommandType::Flip){ harmonics = flip(harmonics); }
 		}
 		// validation: grounded or ungrounded
 		if(harmonics == Harmonics::Low){

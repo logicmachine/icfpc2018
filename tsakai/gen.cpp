@@ -16,7 +16,7 @@ void output(char *filename, unsigned char val[], int size){
 }
 
 int main(){
-  unsigned char val[2];
+  unsigned char val[4];
   val[0] = 0b11111111;
   output("halt.txt", val, 1);
 
@@ -75,6 +75,29 @@ int main(){
   //[«nd»5011]8
   val[0] = 0b01010011;
   output("fill_0_-1_0.txt", val, 1);
+
+  // definition of void
+  val[0] = 0b10111010;
+  output("void_1_0_1.txt", val, 1);
+
+  //definition of GFill
+  //[«nd»5001]8 [«fd.dx»8]8 [«fd.dy»8]8 [«fd.dz»8]8
+  //For example, GFill <0,-1,0> <10,-15,20> is encoded as 
+  val[0] = 0b01010001;
+  val[1] = 0b00101000;
+  val[2] = 0b00001111;
+  val[3] = 0b00110010;
+  output("GFill_0_-1_0__10_-15_20.txt", val, 4);
+
+  // definition of GVoid
+  //[«nd»5000]8 [«fd.dx»8]8 [«fd.dy»8]8 [«fd.dz»8]8
+  //For example, GVoid <1,0,0> <5,5,-5> is encoded as [] [] [] [].
+  val[0] = 0b10110000;
+  val[1] = 0b00100011;
+  val[2] = 0b00100011;
+  val[3] = 0b00011001;
+  output("GVoid_1_0_0__5_5_-5.txt", val, 4);
+
 
 
   return 0;

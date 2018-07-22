@@ -27,6 +27,9 @@ namespace decoder{
       Fill,
       FusionP,
       FusionS,
+      Void,
+      GFill,
+      GVoid
       };
   
   // command to index =  [01234567]
@@ -106,6 +109,13 @@ namespace decoder{
     nd /= 3;
     return ret;
   }
+  std::vector<int> getfd(int fd_x, int fd_y, int fd_z){
+    std::vector<int> ret(3);
+    ret[AXIS::X] = fd_x - 30;
+    ret[AXIS::Y] = fd_y - 30;
+    ret[AXIS::Z] = fd_z - 30;
+    return ret;
+  }
   
   
   std::pair<CommandType,std::vector<std::vector<int>> >  decode(FILE *fp){
@@ -113,7 +123,7 @@ namespace decoder{
     std::vector<std::vector<int> > option;
     std::pair<CommandType, std::vector<std::vector<int>>> ret;
     
-    unsigned char a, b;
+    unsigned char a, b, x ,y, z;
     int cnt = fread(&a,1,1 ,fp);
     if (cnt == 0){
       ret.first = CommandType::Empty;
@@ -176,8 +186,51 @@ namespace decoder{
       ret.first = CommandType::Fill;
       int nd = getVal(bits, 0, 4);
       option.emplace_back(getnd(nd));
-    } 
-
+    } else if ( isSame(bits, std::string("*****010"))){
+      //Void nd:
+      //std::cout << "Void" << std::endl;
+      //[«nd»5010]8
+      //For example, Void <1,0,1> pis encoded as [10111010].
+      ret.first = CommandType::Void;
+      int nd = getVal(bits, 0, 4);
+      option.emplace_back(getnd(nd));
+    } else if ( isSame(bits, std::string("*****001"))){
+      // GFill fd
+      //std::cout << "GFill" << std::endl;
+      //[«nd»5001]8 [«fd.dx»8]8 [«fd.dy»8]8 [«fd.dz»8]8
+      //For example, GFill <0,-1,0> <10,-15,20> is encoded as [01010001] [00101000] [00001111] [00110010].
+      ret.first = CommandType::GFill;
+      int nd = getVal(bits, 0, 4);
+      cnt = fread(&x, 1, 1, fp);
+      std::vector<int> bits2 = getBits(x);
+      int fd_x = getVal(bits2, 0, 7);
+      fread(&y, 1, 1, fp);
+      std::vector<int> bits3 = getBits(y);
+      int fd_y = getVal(bits3, 0, 7);
+      fread(&z, 1, 1, fp);
+      std::vector<int> bits4 = getBits(z);
+      int fd_z = getVal(bits4, 0, 7);
+      option.emplace_back(getnd(nd));
+      option.emplace_back(getfd(fd_x, fd_y, fd_z));
+    } else if (isSame(bits, std::string("*****000"))){
+      //GVoid nd fd:
+      //[«nd»5000]8 [«fd.dx»8]8 [«fd.dy»8]8 [«fd.dz»8]8
+      //For example, GVoid <1,0,0> <5,5,-5> is encoded as [10110000] [00100011] [00100011] [00011001].
+      ret.first = CommandType::GVoid;
+      int nd = getVal(bits, 0, 4);
+      cnt = fread(&x, 1, 1, fp);
+      std::vector<int> bits2 = getBits(x);
+      int fd_x = getVal(bits2, 0, 7);
+      fread(&y, 1, 1, fp);
+      std::vector<int> bits3 = getBits(y);
+      int fd_y = getVal(bits3, 0, 7);
+      fread(&z, 1, 1, fp);
+      std::vector<int> bits4 = getBits(z);
+      int fd_z = getVal(bits4, 0, 7);
+      option.emplace_back(getnd(nd));
+      option.emplace_back(getfd(fd_x, fd_y, fd_z));
+    }
+    
     ret.second = option;
     return ret;
   }
