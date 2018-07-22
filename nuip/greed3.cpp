@@ -194,8 +194,8 @@ int main(int argc, char* argv[]){
 
 	VoxelGrid v = read_data(argv[1]);
 	const int R=v.r();
-	
-	State s(v, 20);
+
+	State s(v, 40);
 
 	if(R<=2){
 		s.bots(0).halt();
@@ -212,7 +212,7 @@ int main(int argc, char* argv[]){
 		return 0;
 	}
 	
-	const int N=4*min(5,R-1);
+	const int N=4*min(10,R-1);
 	{
 		const int dif=(R-1)/(N/4);
 		auto straight=[&](Vec3 dst){
