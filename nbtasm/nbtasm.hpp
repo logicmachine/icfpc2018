@@ -193,6 +193,25 @@ public:
 		, m_r(r)
 	{ }
 
+	static VoxelGrid load_model(const char *filename){
+		std::ifstream ifs(filename, std::ios::in | std::ios::binary);
+		ifs.seekg(0, std::ios_base::end);
+		const auto tail_pos = ifs.tellg();
+		ifs.seekg(0, std::ios_base::beg);
+		const size_t size = (tail_pos - ifs.tellg()) * 8;
+		size_t r = 1;
+		while((r + 1) * (r + 1) * (r + 1) <= size){ ++r; }
+		VoxelGrid vg(r);
+		for(size_t i = 0; i < size; i += 8){
+			int c = ifs.get();
+			for(size_t k = i; k < i + 8 && k < r * r * r; ++k){
+				const size_t z = k % r, y = (k / r) % r, x = k / (r * r);
+				vg(z, y, x) = ((c >> (k - i)) & 1);
+			}
+		}
+		return vg;
+	}
+
 	uint8_t operator()(int i, int j, int k) const noexcept {
 		const int r = m_r;
 		return m_grid[i * r * r + j * r + k];
