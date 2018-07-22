@@ -6,7 +6,7 @@ using namespace std;
 
 /*
  有向全域木を構築
- ground は Vec3{-1, -1, -1}
+ ground は [Vec3{0, -1, 0}, Vec3{R-1, -1, R-1}
  */
 
 class Tree{
@@ -106,7 +106,6 @@ map<Vec3,vector<Vec3>> span(VoxelGrid mat){
 	return re;
 }
 
-int hoge[256][256][256];
 
 #ifdef NUIP
 #define out(args...){vector<string> a_r_g_s=s_p_l_i_t(#args, ','); e_r_r(a_r_g_s.begin(), args); }
@@ -121,25 +120,43 @@ template<typename T>vector<T> table(int n, T v){ return vector<T>(n, v);}
 template <class... Args> auto table(int n, Args... args){auto val = table(args...); return vector<decltype(val)>(n, move(val));}
 #endif
 
+int fenwick[256][256][256];
+
 map<pair<Vec3,Vec3>,vector<pair<Vec3,Vec3>>> Gspan(VoxelGrid mat){
 	int dx[]={1,0,0,-1, 0, 0};
 	int dy[]={0,1,0, 0,-1, 0};
 	int dz[]={0,0,1, 0, 0,-1};
 	map<pair<Vec3,Vec3>,vector<pair<Vec3,Vec3>>> re;
 	queue<pair<Vec3, Vec3>> que;
-	que.emplace(Vec3{0,-1,0}, Vec3{mat.r(), -1, mat.r()});
+	que.emplace(Vec3{0,-1,0}, Vec3{mat.r()-1, -1, mat.r()-1});
 	for(int z=0; z<mat.r(); ++z)
 		for(int y=0; y<mat.r(); ++y)
-			for(int x=0; x<mat.r(); ++x) hoge[z][y][x]=mat(z,y,x);
-	auto count=[](Vec3 lb, Vec3 rb)->int{
-							 int re=0;
-							 for(int x=lb.x; x<rb.x; ++x)
-								 for(int y=lb.y; y<rb.y; ++y)
-									 for(int z=lb.z; z<rb.z; ++z) re+=hoge[z][y][x];
-							 return re;
+			for(int x=0; x<mat.r(); ++x) fenwick[z][y][x]=mat(z,y,x);
+	auto sum=[](Vec3 pos){ pos+=Vec3{2,2,2};
+						 int s=0;
+						 for(int i=pos.z;i;i-=i&-i)
+							 for(int j=pos.y;j;j-=j&-j)
+								 for(int k=pos.x;k;k-=k&-k)
+									 s+=fenwick[i][j][k];
+						 return s;
+					 };
+	auto count=[&](Vec3 lb, Vec3 rb)->int{
+							 rb+=Vec3{1,1,1};
+							 int s=0;
+							 s+=sum(rb);
+							 s-=sum(Vec3{lb.x,rb.y,rb.z});
+							 s-=sum(Vec3{rb.x,lb.y,rb.z});
+							 s-=sum(Vec3{rb.x,rb.y,lb.z});
+							 s+=sum(Vec3{lb.x,lb.y,rb.z});
+							 s+=sum(Vec3{rb.x,lb.y,lb.z});
+							 s+=sum(Vec3{lb.x,rb.y,lb.z});
+							 s-=sum(lb);
 						 };
-	auto add=[](Vec3 pos, int val){
-						 hoge[pos.z][pos.y][pos.x]+=val;
+	auto add=[](Vec3 pos, int val){ pos+=Vec3{2,2,2};
+						 for(int i=pos.z;i<256;i+=i&-i)
+							 for(int j=pos.y;j<256;j+=j&-j)
+								 for(int k=pos.x;k<256;k+=k&-k)
+									 fenwick[i][j][k]+=val;
 					 };
 	auto push=[&](Vec3 lb,Vec3 rb, Vec3 fd){ // [lb,rb]からfd
 							out(lb,rb,fd,1);
@@ -160,7 +177,7 @@ map<pair<Vec3,Vec3>,vector<pair<Vec3,Vec3>>> Gspan(VoxelGrid mat){
 		Vec3 l,r;
 		tie(l,r)=que.front(); que.pop();
 		out(l,r,1);
-#define ADJ\
+#define ADJ \
 		while(1){\
 			int maxVol=0;\
 			Vec3 a,b;\
@@ -235,38 +252,5 @@ int main(int argc, char* argv[]){
 		}
 		return 0;
 	}
-
-	Tree poyo(v);
-
-	for(auto v:poyo.getLeaves()){
-		cout<<v<<",";
-	}
-	cout<<endl;
-
-	poyo.eraseLeaf(Vec3{2,1,1});
-
-	for(auto v:poyo.getLeaves()){
-		cout<<v<<",";
-	}
-	cout<<endl;
-
-	poyo.eraseLeaf(Vec3{1,1,1});
-
-	for(auto v:poyo.getLeaves()){
-		cout<<v<<",";
-	}
-	cout<<endl;
-
-	//------------
-	auto g=span(v);
-
-	// ここの出力は
-	// https://csacademy.com/app/graph_editor/
-	// でビジュアライズできる
-	// for(auto p:g){
-	// 	for(auto v:p.second){
-	// 		cout<<"\""<<p.first<<"\" \""<<v<<"\""<<endl;
-	// 	}
-	// }
   return 0;
 }
