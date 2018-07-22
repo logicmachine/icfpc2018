@@ -1026,7 +1026,7 @@ public:
 				const auto sp = detail::split_seeds(b.seeds, c.fission_m() + 1);
 				new_bots.push_back(Bot{ b.bid, b.pos, sp.second });
 				const int new_bid = __builtin_ctzll(sp.first);
-				new_bots.push_back(Bot{ new_bid, b.pos + c.fission_nd(), sp.first & ~(1u << new_bid) });
+				new_bots.push_back(Bot{ new_bid, b.pos + c.fission_nd(), sp.first & ~(1ull << new_bid) });
 			}else if(c.type == CommandType::Fill){
 				new_bots.push_back(b);
 			}else if(c.type == CommandType::Empty){
