@@ -6,7 +6,7 @@ using namespace std;
 
 /*
  óLå¸ëSàÊñÿÇç\íz
- ground ÇÕ [Vec3{0, -1, 0}, Vec3{R-1, -1, R-1}
+ ground ÇÕ [Vec3{0, -1, 0}, Vec3{R-1, -1, R-1}]
  */
 
 // template<class S, class T> ostream& operator<<(ostream &os, const pair<S,T> &t) { return os<<"("<<t.first<<","<<t.second<<")";}
@@ -19,7 +19,7 @@ private:
 	map<pair<Vec3,Vec3>,vector<pair<Vec3,Vec3>>> originalTree;
 	map<pair<Vec3,Vec3>,set<pair<Vec3,Vec3>>> tree;
 	map<pair<Vec3,Vec3>,pair<Vec3,Vec3>> parent;
-	set<pair<Vec3,Vec3>> leaves;
+	set<pair<Vec3,Vec3>> leaves,roots;
 
 	int sum(Vec3 pos){
 		pos+=Vec3{1,1,1};
@@ -135,7 +135,7 @@ private:
 		return re;
 	}
 public:
-	Gtree(VoxelGrid mat){
+	Gtree(VoxelGrid mat):roots{make_pair(Vec3{0, -1, 0}, Vec3{mat.r()-1, -1, mat.r()-1})}{
 		originalTree=Gspan(mat);
 		for(auto &p:originalTree){
 			if(p.second.size()){
@@ -145,6 +145,7 @@ public:
 			}
 			for(auto &cld:p.second) parent[cld]=p.first;
 		}
+
 
 		// for(auto p:originalTree){
 		// 	for(auto v:p.second){
@@ -161,6 +162,17 @@ public:
 		tree[par].erase(leaf);
 		if(tree[par].empty()) leaves.emplace(par);
 		leaves.erase(leaf);
+	}
+
+	const set<pair<Vec3,Vec3>>& getRoots()const{ return roots;}
+
+	void eraseRoot(pair<Vec3,Vec3> root){
+		assert(roots.count(root));
+		for(auto cld:tree[root]){
+			roots.insert(cld);
+			//upd parent[cld]?
+		}
+		roots.erase(root);
 	}
 };
 
