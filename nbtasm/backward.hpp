@@ -35,7 +35,7 @@ static void export_backward_trace(const std::string& filename, const State& bwd)
 				int secondary_seeds_size = 0;
 				for(size_t k = 0; k < replay.num_bots(); ++k){
 					if(replay.bots(k).pos() == b.pos() + c.fusion_nd()){
-						secondary_seeds_size = __builtin_popcount(replay.bots(k).seeds());
+						secondary_seeds_size = __builtin_popcountll(replay.bots(k).seeds());
 					}
 				}
 				pos2cmd.back().emplace(
