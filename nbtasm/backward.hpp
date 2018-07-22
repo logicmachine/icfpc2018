@@ -50,13 +50,13 @@ static void export_backward_trace(const std::string& filename, const State& bwd)
 					b.pos(),
 					Command(CommandType::GEmpty)
 						.gempty_nd(c.gfill_nd())
-						.gempty_fd(c.gfill_fd());
+						.gempty_fd(c.gfill_fd()));
 			}else if(c.type == CommandType::GEmpty){
 				pos2cmd.back().emplace(
 					b.pos(),
 					Command(CommandType::GFill)
 						.gfill_nd(c.gempty_nd())
-						.gfill_fd(c.gempty_fd());
+						.gfill_fd(c.gempty_fd()));
 			}else{
 				pos2cmd.back().emplace(b.pos(), c);
 			}
