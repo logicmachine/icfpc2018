@@ -56,6 +56,9 @@ struct Vec3 {
 		if(x == 0 && y == 0){ return 0x60 | (z + 15); }
 		return 0;
 	}
+	unsigned int encode_far_distance() const noexcept {
+		return (x + 30) | ((y + 30) << 8) | ((z + 30) << 16);
+	}
 
 	static Vec3 decode_near_distance(unsigned int x) noexcept {
 		return Vec3((x / 9) - 1, (x / 3 % 3) - 1, (x % 3) - 1);
@@ -71,6 +74,12 @@ struct Vec3 {
 		if((x >> 5) == 0x02){ return Vec3(0, (x & 0x1f) - 15, 0); }
 		if((x >> 5) == 0x03){ return Vec3(0, 0, (x & 0x1f) - 15); }
 		return Vec3();
+	}
+	static Vec3 decode_far_distance(unsigned int x) noexcept {
+		return Vec3(
+			((x >>  0) & 0xff) - 30,
+			((x >>  8) & 0xff) - 30,
+			((x >> 16) & 0xff) - 30);
 	}
 };
 
@@ -121,18 +130,37 @@ public:
 	int r() const noexcept { return m_r; }
 	int size() const noexcept { return m_r; }
 
-	bool test(const Vec3& a, const Vec3& b) const {
+	int test(const Vec3& a, const Vec3& b) const noexcept {
 		const int i_lo = std::min(a.z, b.z), i_hi = std::max(a.z, b.z);
 		const int j_lo = std::min(a.y, b.y), j_hi = std::max(a.y, b.y);
 		const int k_lo = std::min(a.x, b.x), k_hi = std::max(a.x, b.x);
+		int count = 0;
 		for(int i = i_lo; i <= i_hi; ++i){
 			for(int j = j_lo; j <= j_hi; ++j){
 				for(int k = k_lo; k <= k_hi; ++k){
-					if((*this)(i, j, k)){ return false; }
+					if((*this)(i, j, k)){ ++count; }
 				}
 			}
 		}
-		return true;
+		return count;
+	}
+
+	int fill(const Vec3& a, const Vec3& b, uint8_t value) noexcept {
+		const int i_lo = std::min(a.z, b.z), i_hi = std::max(a.z, b.z);
+		const int j_lo = std::min(a.y, b.y), j_hi = std::max(a.y, b.y);
+		const int k_lo = std::min(a.x, b.x), k_hi = std::max(a.x, b.x);
+		int count = 0;
+		for(int i = i_lo; i <= i_hi; ++i){
+			for(int j = j_lo; j <= j_hi; ++j){
+				for(int k = k_lo; k <= k_hi; ++k){
+					if((*this)(i, j, k) != value){
+						(*this)(i, j, k) = value;
+						++count;
+					}
+				}
+			}
+		}
+		return count;
 	}
 
 };
@@ -148,7 +176,9 @@ enum class CommandType {
 	Fill,
 	Empty,
 	FusionP,
-	FusionS
+	FusionS,
+	GFill,
+	GEmpty
 };
 
 struct Command {
@@ -167,6 +197,10 @@ struct Command {
 	const Vec3& fill_nd() const noexcept { return v1; }
 	const Vec3& empty_nd() const noexcept { return v1; }
 	const Vec3& fusion_nd() const noexcept { return v1; }
+	const Vec3& gfill_nd() const noexcept { return v1; }
+	const Vec3& gfill_fd() const noexcept { return v2; }
+	const Vec3& gempty_nd() const noexcept { return v1; }
+	const Vec3& gempty_fd() const noexcept { return v2; }
 
 	Vec3& smove_lld() noexcept { return v1; }
 	Vec3& lmove_sld1() noexcept { return v1; }
@@ -175,6 +209,10 @@ struct Command {
 	Vec3& fill_nd() noexcept { return v1; }
 	Vec3& empty_nd() noexcept { return v1; }
 	Vec3& fusion_nd() noexcept { return v1; }
+	Vec3& gfill_nd() noexcept { return v1; }
+	Vec3& gfill_fd() noexcept { return v2; }
+	Vec3& gempty_nd() noexcept { return v1; }
+	Vec3& gempty_fd() noexcept { return v2; }
 
 	Command& smove_lld(const Vec3& v) noexcept { v1 = v; return *this; }
 	Command& lmove_sld1(const Vec3& v) noexcept { v1 = v; return *this; }
@@ -184,6 +222,10 @@ struct Command {
 	Command& fill_nd(const Vec3& v) noexcept { v1 = v; return *this; }
 	Command& empty_nd(const Vec3& v) noexcept { v1 = v; return *this; }
 	Command& fusion_nd(const Vec3& v) noexcept { v1 = v; return *this; }
+	Command& gfill_nd(const Vec3& v) noexcept { v1 = v; return *this; }
+	Command& gfill_fd(const Vec3& v) noexcept { v2 = v; return *this; }
+	Command& gempty_nd(const Vec3& v) noexcept { v1 = v; return *this; }
+	Command& gempty_fd(const Vec3& v) noexcept { v2 = v; return *this; }
 
 	void write_binary(std::ostream& os) const {
 		if(type == CommandType::Halt){
@@ -214,6 +256,20 @@ struct Command {
 			os.put(fission_m());
 		}else if(type == CommandType::Fill){
 			os.put(0x03 | (fill_nd().encode_near_distance() << 3));
+		}else if(type == CommandType::Empty){
+			os.put(0x02 | (empty_nd().encode_near_distance() << 3));
+		}else if(type == CommandType::GFill){
+			const auto fd = gfill_fd().encode_far_distance();
+			os.put(0x01 | (gfill_nd().encode_near_distance() << 3));
+			os.put((fd >>  0) & 0xff);
+			os.put((fd >>  8) & 0xff);
+			os.put((fd >> 16) & 0xff);
+		}else if(type == CommandType::GEmpty){
+			const auto fd = gempty_fd().encode_far_distance();
+			os.put(0x00 | (gempty_nd().encode_near_distance() << 3));
+			os.put((fd >>  0) & 0xff);
+			os.put((fd >>  8) & 0xff);
+			os.put((fd >> 16) & 0xff);
 		}
 	}
 
@@ -234,6 +290,10 @@ struct Command {
 			return Command(CommandType::Fill)
 				.fill_nd(Vec3::decode_near_distance(f >> 3));
 		}
+		if((f & 0x07) == 0x02){
+			return Command(CommandType::Empty)
+				.empty_nd(Vec3::decode_near_distance(f >> 3));
+		}
 		const unsigned int s = is.get();
 		if((f & 0xcf) == 0x04){
 			return Command(CommandType::SMove)
@@ -249,6 +309,21 @@ struct Command {
 				.fission_nd(Vec3::decode_near_distance(f >> 3))
 				.fission_m(s);
 		}
+		if((f & 0x0f) == 0x00 || (f & 0x0f) == 0x01){
+			const unsigned int t = is.get();
+			const unsigned int i = is.get();
+			const auto nd = Vec3::decode_near_distance(f >> 3);
+			const auto fd = Vec3::decode_far_distance((s << 0) | (t << 8) | (i << 16));
+			if((f & 0x0f) == 0x00){
+				return Command(CommandType::GEmpty)
+					.gempty_nd(nd)
+					.gempty_fd(fd);
+			}else{
+				return Command(CommandType::GFill)
+					.gfill_nd(nd)
+					.gfill_fd(fd);
+			}
+		}
 		throw std::runtime_error("unknown command");
 	}
 };
@@ -262,7 +337,7 @@ inline std::ostream& operator<<(std::ostream& os, const Command& c){
 	}else if(c.type == CommandType::Flip){
 		os << "type=Flip";
 	}else if(c.type == CommandType::SMove){
-		os << "type=SMove, ldd1=" << c.smove_lld();
+		os << "type=SMove, lld=" << c.smove_lld();
 	}else if(c.type == CommandType::LMove){
 		os << "type=LMove, sld1=" << c.lmove_sld1() << ", sld2=" << c.lmove_sld2();
 	}else if(c.type == CommandType::Fission){
@@ -270,11 +345,15 @@ inline std::ostream& operator<<(std::ostream& os, const Command& c){
 	}else if(c.type == CommandType::Fill){
 		os << "type=Fill, nd=" << c.fill_nd();
 	}else if(c.type == CommandType::Empty){
-		os << "type=Empty, nd=" << c.fill_nd();
+		os << "type=Empty, nd=" << c.empty_nd();
 	}else if(c.type == CommandType::FusionP){
 		os << "type=FusionP, nd=" << c.fusion_nd();
 	}else if(c.type == CommandType::FusionS){
 		os << "type=FusionS, nd=" << c.fusion_nd();
+	}else if(c.type == CommandType::GFill){
+		os << "type=GFill, nd=" << c.gfill_nd() << ", " << c.gfill_fd();
+	}else if(c.type == CommandType::GEmpty){
+		os << "type=GEmpty, nd=" << c.gempty_nd() << ", " << c.gempty_fd();
 	}
 	return os << " }";
 }
@@ -282,29 +361,29 @@ inline std::ostream& operator<<(std::ostream& os, const Command& c){
 
 namespace detail {
 
-static inline std::pair<uint32_t, uint32_t> split_seeds(uint32_t s, int m) noexcept {
+static inline std::pair<uint64_t, uint64_t> split_seeds(uint64_t s, int m) noexcept {
 	for(int i = 0, k = 0; i < 8 * sizeof(s); ++i){
 		if(k == m){
-			const uint32_t mask = (1u << i) - 1u;
+			const uint64_t mask = (1ull << i) - 1ull;
 			return std::make_pair(s & mask, s & ~mask);
 		}
-		if(s & (1 << i)){ ++k; }
+		if(s & (1ull << i)){ ++k; }
 	}
 	return std::make_pair(s, 0);
 }
 
-static inline void format_seeds(std::ostream& os, uint32_t s){
+static inline void format_seeds(std::ostream& os, uint64_t s){
 	const int len = 8 * sizeof(s);
 	bool is_first = true;
 	os << "(";
 	for(int head = 0; head < len; ){
-		if(!(s & (1 << head))){
+		if(!(s & (1ull << head))){
 			++head;
 			continue;
 		}
 		int tail = head;
 		while(tail < len){
-			if(!(s & (1 << tail))){ break; }
+			if(!(s & (1ull << tail))){ break; }
 			++tail;
 		}
 		if(!is_first){ os << ", "; }
@@ -326,7 +405,7 @@ static inline void format_seeds(std::ostream& os, uint32_t s){
 struct Bot {
 	int bid;
 	Vec3 pos;
-	uint32_t seeds;
+	uint64_t seeds;
 };
 
 std::ostream& operator<<(std::ostream& os, const Bot& b){
@@ -390,6 +469,18 @@ static inline void throw_test_long_distance(const Vec3& v, const Bot& b, const C
 	}
 }
 
+static inline bool test_far_distance(const Vec3& v) noexcept {
+	if(v.x < -30 || 30 < v.x){ return false; }
+	if(v.y < -30 || 30 < v.y){ return false; }
+	if(v.z < -30 || 30 < v.z){ return false; }
+	return true;
+}
+static inline void throw_test_far_distance(const Vec3& v, const Bot& b, const Command& c){
+	if(!test_far_distance(v)){
+		throw CommandError(b, c, "invalid far distance");
+	}
+}
+
 static inline bool test_position_range(int r, const Vec3& v) noexcept {
 	return (0 <= v.x && v.x < r) && (0 <= v.y && v.y < r) && (0 <= v.z && v.z < r);
 }
@@ -412,7 +503,7 @@ public:
 		{ }
 		int bid() const noexcept { return m_bot.bid; }
 		const Vec3& pos() const noexcept { return m_bot.pos; }
-		uint32_t seeds() const noexcept { return m_bot.seeds; }
+		uint64_t seeds() const noexcept { return m_bot.seeds; }
 	};
 
 
@@ -432,7 +523,7 @@ public:
 
 		int bid() const noexcept { return m_bot.bid; }
 		const Vec3& pos() const noexcept { return m_bot.pos; }
-		uint32_t seeds() const noexcept { return m_bot.seeds; }
+		uint64_t seeds() const noexcept { return m_bot.seeds; }
 
 		void halt(){ m_command = Command(CommandType::Halt); }
 		void wait(){ m_command = Command(CommandType::Wait); }
@@ -460,10 +551,10 @@ public:
 				.fission_nd(nd)
 				.fission_m(m);
 			throw_test_near_distance(nd, m_bot, c);
-			const int n = __builtin_popcount(m_bot.seeds);
+			const int n = __builtin_popcountll(m_bot.seeds);
 			if(m < 0 || n < m + 1){ throw CommandError(m_bot, c, "invalid m"); }
 			m_command = c;
-			return __builtin_ctz(m_bot.seeds);
+			return __builtin_ctzll(m_bot.seeds);
 		}
 		void fill(const Vec3& nd){
 			const auto c = Command(CommandType::Fill)
@@ -489,6 +580,22 @@ public:
 			throw_test_near_distance(nd, m_bot, c);
 			m_command = c;
 		}
+		void gfill(const Vec3& nd, const Vec3& fd){
+			const auto c = Command(CommandType::GFill)
+				.gfill_nd(nd)
+				.gfill_fd(fd);
+			throw_test_near_distance(nd, m_bot, c);
+			throw_test_far_distance(fd, m_bot, c);
+			m_command = c;
+		}
+		void gempty(const Vec3& nd, const Vec3& fd){
+			const auto c = Command(CommandType::GEmpty)
+				.gempty_nd(nd)
+				.gempty_fd(fd);
+			throw_test_near_distance(nd, m_bot, c);
+			throw_test_far_distance(fd, m_bot, c);
+			m_command = c;
+		}
 
 		void exec(const Command& cmd){
 			m_command = cmd;
@@ -506,6 +613,36 @@ private:
 	std::vector<Command> m_pending_commands;
 
 	int m_max_num_bots;
+
+	bool test_gfill_validity(
+		const Bot& b, const Command& c,
+		const std::unordered_map<Vec3, size_t>& gnd2idx) const
+	{
+		auto extract_nd = [](const Command& c){
+			return c.type == CommandType::GFill ? c.gfill_nd() : c.gempty_nd();
+		};
+		auto extract_fd = [](const Command& c){
+			return c.type == CommandType::GFill ? c.gfill_fd() : c.gempty_fd();
+		};
+		const Vec3 origin = b.pos + extract_nd(c);
+		const Vec3 origin_fd = extract_fd(c);
+		for(int bits = 0; bits < 8; ++bits){
+			const Vec3 v(
+				origin.x + ((bits & 1) ? origin_fd.x : 0),
+				origin.y + ((bits & 2) ? origin_fd.y : 0),
+				origin.z + ((bits & 4) ? origin_fd.z : 0));
+			const auto it = gnd2idx.find(v);
+			if(it == gnd2idx.end()){ return false; }
+			const auto& c2 = m_pending_commands[it->second];
+			if(c2.type != c.type){ return false; }
+			const Vec3 u(
+				(bits & 1) ? -origin_fd.x : origin_fd.x,
+				(bits & 2) ? -origin_fd.y : origin_fd.y,
+				(bits & 4) ? -origin_fd.z : origin_fd.z);
+			if(extract_fd(c2) != u){ return false; }
+		}
+		return true;
+	}
 
 public:
 	State()
@@ -574,8 +711,15 @@ public:
 	void commit(){
 		// build map to get bot from position for fusion
 		std::unordered_map<Vec3, size_t> pos2idx;
+		std::unordered_map<Vec3, size_t> gnd2idx;
 		for(size_t i = 0; i < m_bots.size(); ++i){
+			const auto& c = m_pending_commands[i];
 			pos2idx.emplace(m_bots[i].pos, i);
+			if(c.type == CommandType::GFill){
+				gnd2idx.emplace(m_bots[i].pos + c.gfill_nd(), i);
+			}else if(c.type == CommandType::GEmpty){
+				gnd2idx.emplace(m_bots[i].pos + c.gempty_nd(), i);
+			}
 		}
 		// process commands: create new bot list
 		std::vector<Bot> new_bots;
@@ -606,13 +750,19 @@ public:
 				const auto& c2 = m_pending_commands[it->second];
 				if(c2.type != CommandType::FusionS){ throw CommandError(b, c, "unmatched fusion"); }
 				if(c2.fusion_nd() != -c.fusion_nd()){ throw CommandError(b, c, "unmatched fusion"); }
-				new_bots.push_back(Bot{ b.bid, b.pos, b.seeds | secondary.seeds | (1u << secondary.bid) });
+				new_bots.push_back(Bot{ b.bid, b.pos, b.seeds | secondary.seeds | (1ull << secondary.bid) });
 			}else if(c.type == CommandType::FusionS){
 				const auto it = pos2idx.find(b.pos + c.fusion_nd());
 				if(it == pos2idx.end()){ throw CommandError(b, c, "unmatched fusion"); }
 				const auto& c2 = m_pending_commands[it->second];
 				if(c2.type != CommandType::FusionP){ throw CommandError(b, c, "unmatched fusion"); }
 				if(c2.fusion_nd() != -c.fusion_nd()){ throw CommandError(b, c, "unmatched fusion"); }
+			}else if(c.type == CommandType::GFill){
+				if(!test_gfill_validity(b, c, gnd2idx)){ throw CommandError(b, c, "unmatched gfill"); }
+				new_bots.push_back(b);
+			}else if(c.type == CommandType::GEmpty){
+				if(!test_gfill_validity(b, c, gnd2idx)){ throw CommandError(b, c, "unmatched gempty"); }
+				new_bots.push_back(b);
 			}
 		}
 		// sort by bid
@@ -621,6 +771,7 @@ public:
 			[](const Bot& a, const Bot& b){ return a.bid < b.bid; });
 #ifdef STRONG_VALIDATION
 		// validation: check volatility
+		// TODO gfill, gempty
 		std::unordered_map<Vec3, int> volatility_map;
 		auto check_weak_volatility = [this, &volatility_map](const Vec3& v, const Bot& b, const Command& c){
 			const auto it = volatility_map.find(v);
@@ -715,12 +866,30 @@ public:
 				const auto p = b.pos + c.empty_nd();
 				if(m_matrix(p.z, p.y, p.x)){
 					m_matrix(p.z, p.y, p.x) = 0;
-					m_energy += 12;
+					m_energy -= 12;
 				}else{
-					m_energy += 6;
+					m_energy += 3;
 				}
 			}else if(c.type == CommandType::FusionP){
 				m_energy -= 24;
+			}else if(c.type == CommandType::GFill){
+				const auto fd = c.gfill_fd();
+				if(fd.x >= 0 && fd.y >= 0 && fd.z >= 0){
+					const int region_size = std::max(fd.x, 1) * std::max(fd.y, 1) * std::max(fd.z, 1);
+					const int fill_count = m_matrix.fill(
+						b.pos + c.gfill_nd(), b.pos + c.gfill_nd() + c.gfill_fd(), 1);
+					m_energy += 12 * fill_count;
+					m_energy +=  6 * (region_size - fill_count);
+				}
+			}else if(c.type == CommandType::GEmpty){
+				const auto fd = c.gempty_fd();
+				if(fd.x >= 0 && fd.y >= 0 && fd.z >= 0){
+					const int region_size = std::max(fd.x, 1) * std::max(fd.y, 1) * std::max(fd.z, 1);
+					const int fill_count = m_matrix.fill(
+						b.pos + c.gempty_nd(), b.pos + c.gempty_nd() + c.gempty_fd(), 0);
+					m_energy -= 12 * fill_count;
+					m_energy +=  3 * (region_size - fill_count);
+				}
 			}
 		}
 		const int64_t r = m_matrix.size();

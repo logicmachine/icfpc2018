@@ -64,23 +64,23 @@ bool move_once(State &s, int bnum, const Vec3 &from, const Vec3 &to)
         }
     } else if (from.x == to.x) {
         int dy = (to.y - from.y), dz = (to.z - from.z);
-        dy = ((abs(dy) > 5) ? 5 * ((dy >= 0) ? 1 : -1) : dy);
-        dz = ((abs(dz) > 5) ? 5 * ((dz >= 0) ? 1 : -1) : dz);
+        dy = ((abs(dy) > 5) ? (5 * ((dy >= 0) ? 1 : -1)) : dy);
+        dz = ((abs(dz) > 5) ? (5 * ((dz >= 0) ? 1 : -1)) : dz);
         s.bots(bnum).lmove(Vec3(0, dy, 0), Vec3(0, 0, dz));
     } else if (from.y == to.y) {
         int dx = (to.x - from.x), dz = (to.z - from.z);
-        dx = ((abs(dx) > 5) ? 5 * ((dx >= 0) ? 1 : -1) : dx);
-        dz = ((abs(dz) > 5) ? 5 * ((dz >= 0) ? 1 : -1) : dz);
+        dx = ((abs(dx) > 5) ? (5 * ((dx >= 0) ? 1 : -1)) : dx);
+        dz = ((abs(dz) > 5) ? (5 * ((dz >= 0) ? 1 : -1)) : dz);
         s.bots(bnum).lmove(Vec3(dx, 0, 0), Vec3(0, 0, dz));
     } else if (from.z == to.z) {
         int dy = (to.y - from.y), dx = (to.x - from.x);
-        dx = ((abs(dx) > 5) ? 5 * ((dx >= 0) ? 1 : -1) : dx);
-        dy = ((abs(dy) > 5) ? 5 * ((dy >= 0) ? 1 : -1) : dy);
+        dx = ((abs(dx) > 5) ? (5 * ((dx >= 0) ? 1 : -1)) : dx);
+        dy = ((abs(dy) > 5) ? (5 * ((dy >= 0) ? 1 : -1)) : dy);
         s.bots(bnum).lmove(Vec3(0, dy, 0), Vec3(dx, 0, 0));
     } else {
         int dy = (to.y - from.y), dz = (to.z - from.z);
-        dy = ((abs(dy) > 5) ? 5 * ((dy >= 0) ? 1 : -1) : dy);
-        dz = ((abs(dz) > 5) ? 5 * ((dz >= 0) ? 1 : -1) : dz);
+        dy = ((abs(dy) > 5) ? (5 * ((dy >= 0) ? 1 : -1)) : dy);
+        dz = ((abs(dz) > 5) ? (5 * ((dz >= 0) ? 1 : -1)) : dz);
         s.bots(bnum).lmove(Vec3(0, dy, 0), Vec3(0, 0, dz));
     }
 
@@ -93,23 +93,22 @@ bool clear_table(State &s, Vec3 &p1, Vec3 &p2, int h)
         lz = min(p1.z, p2.z), rz = max(p1.z, p2.z);
     for (int i = lx; i <= rx; i++) {
         for (int j = lz; j <= rz; j++) {
-            if (s.matrix(i, h, j)) return false;
+            if (s.matrix(j, h, i)) return false;
         }
     }
     return true;
 }
 
-bool clear_once(State &s, int bnum)
+bool clear_once(State &s, int bnum, Vec3 &p1, Vec3 &p2)
 {
-    int dx[5] = {-1, 0, 1, 0, 0};
-    int dz[5] = {0, -1, 0, 1, 0};
+    int dx[5] = {0, -1, 0, 1, 0};
+    int dz[5] = {0, 0, -1, 0, 1};
     for (int i = 0; i < 5; i++) {
         Vec3 des(dx[i], -1, dz[i]);
-        if (s.matrix(s.bots(bnum).pos().x + des.x, s.bots(bnum).pos().y + des.y, s.bots(bnum).pos().z + des.z)) {
+        if (min(p1.z, p2.z) <= s.bots(bnum).pos().z + des.z && max(p1.z, p2.z) >= s.bots(bnum).pos().z + des.z &&
+            min(p1.x, p2.x) <= s.bots(bnum).pos().x + des.x && max(p1.x, p2.x) >= s.bots(bnum).pos().x + des.x &&
+                s.matrix()(s.bots(bnum).pos().z + des.z, s.bots(bnum).pos().y + des.y, s.bots(bnum).pos().x + des.x)) {
             s.bots(bnum).empty(des);
-        s.matrix(s.bots(bnum).pos().x + des.x,
-                s.bots(bnum).pos().y + des.y,
-                s.bots(bnum).pos().z + des.z) = 0;
             return true;
         }
     }
@@ -123,7 +122,7 @@ void move_near(State &s, int bnum, Vec3 &p1, Vec3 &p2)
     int h = s.bots(bnum).pos().y-1;
     for (int i = lx; i <= rx; i++) {
         for (int j = lz; j <= rz; j++) {
-            if (s.matrix(i, h, j)) {
+            if (s.matrix(j, h, i)) {
                 move_once(s, bnum, s.bots(bnum).pos(), Vec3(i,h+1,j));
                 return;
             }
@@ -150,10 +149,10 @@ void solve()
         }
     }
     /*
-    cout << " 探索範囲 : (" << xl << "," << xr << "), (" << 
+    cerr << " 探索範囲 : (" << xl << "," << xr << "), (" << 
         yl << "," << yr << "), (" << 
         zl << "," << zr << ")" << endl;
-    */
+        */
     while (!move_once(state,0,state.bots(0).pos(),Vec3(0, yr+1, 0))) {
         state.commit();
     }
@@ -198,14 +197,15 @@ void solve()
     for (int i = yr+1; i > 0; i--) {
         while (1) {
             bool finish = true;
-            for (int j = 0; j < 20; j++) {
+            for (int j = 0; j < state.num_bots(); j++) {
                 bool j_clear = 
                     clear_table(state, data[j].fir, data[j].sec, i-1);
                 finish &= j_clear;
-                if (!j_clear && !clear_once(state, j)) {
+                if (!j_clear && !clear_once(state, j, data[j].fir, data[j].sec)) {
                     move_near(state, j, data[j].fir, data[j].sec);
                 }
             }
+            //dump(state);
             state.commit();
             if (finish) break;
         }
