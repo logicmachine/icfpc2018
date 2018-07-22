@@ -33,7 +33,7 @@ using namespace std;
 #define Decimal fixed << setprecision(10)
 #define BOT_COUNT 40
 #define BOT_X 8
-#define BOT_Y 5
+#define BOT_Z 5
 //int dxy[5] = {0, 1, 0, -1, 0};
 // cmd
 
@@ -150,23 +150,23 @@ void solve()
             }
         }
     }
-    
+    /*
     cerr << " 探索範囲 : (" << xl << "," << xr << "), (" << 
         yl << "," << yr << "), (" << 
         zl << "," << zr << ")" << endl;
-        
+        */  
     while (!move_once(state,0,state.bots(0).pos(),Vec3(0, yr+1, 0))) {
         state.commit();
     }
     state.commit();
 
     int dx = (xr - xl + 1) / BOT_X, ex = (xr - xl + 1) % BOT_X, 
-        dz = (zr - zl + 1) / BOT_Y;
+        dz = (zr - zl + 1) / BOT_Z;
 
     vector<pair<Vec3, Vec3>> data(BOT_COUNT);
     int pos = 1;
     for (int i = xr; i > xl; i -= dx) {
-        int ez = (zr - zl + 1) % BOT_Y;
+        int ez = (zr - zl + 1) % BOT_Z;
         for (int j = zr; j > zl; j -= dz) {
             data[pos++] = mp(Vec3(i, yr+1, j), 
                     Vec3(i-dx+1-!!(ex), yr+1, j-dz+1-!!(ez)));
@@ -181,11 +181,11 @@ void solve()
             i--;
         }
     }
-
+    /*
     for (int i = 0; i < BOT_COUNT; i++) {
         cout << data[i].fir << " -> " << data[i].sec << endl;
     }
-
+    */
     for (int i = 1; i < BOT_COUNT; i++) {
         state.bots(0).fission(Vec3(1, 0, 0), 0);
         state.commit();
@@ -225,7 +225,6 @@ void solve()
     }
     state.commit();
 
-
     rep(i, BOT_COUNT-1) {
         while (!move_once(state,state.num_bots()-1,state.bots(state.num_bots()-1).pos(),Vec3(1, 0, 0))) {
             state.commit();
@@ -240,7 +239,7 @@ void solve()
     state.bots(0).halt();
     state.commit();
 
-    export_backward_trace("myans.nbt", state);
+    export_backward_trace("myans029.nbt", state);
 
 }
 
