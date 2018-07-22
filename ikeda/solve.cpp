@@ -253,6 +253,32 @@ void region(State &s, vector<pair<Vec3, Vec3>> &list)
     }
 }
 
+bool div_cmp(const Vec3 &p1, const Vec3 &p2, vector<pair<Vec3, Vec3>> &data)
+{
+    int p1x = -1000, p2x = -1000, p1z = -1000, p2z = -1000;
+    Rep(i, data.size()) {
+        int lx = min(data[i].fir.x, data[i].sec.x), rx = max(data[i].fir.x, data[i].sec.x),
+            lz = min(data[i].fir.z, data[i].sec.z), rz = max(data[i].fir.z, data[i].sec.z);
+        if (lx <= p1.x && p1.x <= rx && lz <= p1.z && p1.z <= rz) {
+            p1x = (data.size()-i) / BOT_Z;
+            p1z = (data.size()-i) % BOT_Z;
+    //cout << p1 << " " << p1x << " " << p1z << " : " << i << endl;
+        }
+        if (lx <= p2.x && p2.x <= rx && lz <= p2.z && p2.z <= rz) {
+            p2x = (data.size()-i) / BOT_Z;
+            p2z = (data.size()-i) % BOT_Z;
+    //cout << p2 << " " << p2x << " " << p2z << " : " << i << endl;
+        }
+    }
+    if (p1x == -1000) p1x = p1z = 0;
+    if (p2x == -1000) p2x = p2z = 0;
+    //cout << make_tuple(p1.x/dx, p1.y, p1.z/dz) << " , " << 
+     //   make_tuple(p2.x/dx, p2.y, p2.z/dz) << endl;
+    //cout << p1.x/dx << " " << p1.x << " , " << p2.x/dx << " " << p2.x << endl;
+    return make_tuple(p1x, p1.y, p1z) < make_tuple(p2x, p2.y, p2z);
+}
+
+
 void solve(const char *fname)
 {
     State state(targ, BOT_COUNT);
@@ -263,7 +289,7 @@ void solve(const char *fname)
     for (int i = 0; i < r; i++) {
         for (int j = 0; j < r; j++) {
             for (int k = 0; k < r; k++) {
-                if (targ(i, j, k)) {
+                if (targ(k, j, i)) {
                     xl = min(xl, i); xr = max(xr, i);
                     yl = min(yl, j); yr = max(yr, j);
                     zl = min(zl, k); zr = max(zr, k);
@@ -271,17 +297,18 @@ void solve(const char *fname)
             }
         }
     }
-    /*   
+       
     cerr << " 探索範囲 : (" << xl << "," << xr << "), (" << 
         yl << "," << yr << "), (" << 
         zl << "," << zr << ")" << endl;
-      */    
+          
     while (!move_once(state,0,state.bots(0).pos(),Vec3(0, yr+1, 0))) {
         state.commit();
     }
 
     int dx = (xr - xl + 1) / BOT_X, ex = (xr - xl + 1) % BOT_X, 
         dz = (zr - zl + 1) / BOT_Z;
+    if (!dx || !dz) return;
 
     vector<pair<Vec3, Vec3>> data(BOT_COUNT);
     int pos = 1;
@@ -365,17 +392,15 @@ void solve(const char *fname)
             state.bots(j).smove(Vec3(0, -1, 0));
         }
         state.commit();
-        region(state, data);
     }
-
 
     Vec3 merge_dz(1, 0, 0);
     while (state.num_bots() > BOT_Z) {
-        vi pos_bots(state.num_bots());
+        vi pos_bots(state.num_bots());  //  ここからバブルソート
         rep(i, pos_bots.size()) pos_bots[i] = i;
         rep(i, pos_bots.size()) { // Z 
             for (int j = pos_bots.size()-1; j > i; j--) {
-                if (state.bots(pos_bots[j]).pos() < state.bots(pos_bots[j-1]).pos())
+                if (div_cmp(state.bots(pos_bots[j]).pos(), state.bots(pos_bots[j-1]).pos(), data))  // <
                     swap(pos_bots[j], pos_bots[j-1]);
             }
         }
@@ -392,22 +417,22 @@ void solve(const char *fname)
             state.commit();
         }
         for (int i = 1; i <= BOT_Z; i++) {
-            state.bots(pos_bots[state.num_bots()-i]).fusion_p(Vec3(-1, 0, 0));
-            state.bots(pos_bots[state.num_bots()-i-BOT_Z]).fusion_s(Vec3(1, 0, 0));
+            state.bots(pos_bots[state.num_bots()-i]).fusion_s(Vec3(-1, 0, 0));
+            state.bots(pos_bots[state.num_bots()-i-BOT_Z]).fusion_p(Vec3(1, 0, 0));
         }
         state.commit();
     }
 
-    while (!move_once(state,state.num_bots()-1,state.bots(state.num_bots()-1).pos(),Vec3(0, 0, 0))) {
+    while (!move_once(state,0,state.bots(0).pos(),Vec3(0, 0, 0))) {
         state.commit();
     }
 
     rep(i, BOT_Z-1) {
-        while (!move_once(state,state.num_bots()-2,state.bots(state.num_bots()-2).pos(),Vec3(1, 0, 0))) {
+        while (!move_once(state,state.num_bots()-1,state.bots(state.num_bots()-1).pos(),Vec3(1, 0, 0))) {
             state.commit();
         }
-        state.bots(state.num_bots()-1).fusion_p(Vec3{1, 0, 0});
-        state.bots(state.num_bots()-2).fusion_s(Vec3{-1, 0, 0});
+        state.bots(0).fusion_p(Vec3{1, 0, 0});
+        state.bots(state.num_bots()-1).fusion_s(Vec3{-1, 0, 0});
         state.commit();
     }
 
@@ -429,7 +454,7 @@ signed main(int argc, char *argv[])
     }
 
     targ = read_data(string(argv[1]));
-    solve(argv[2]);        // 簡単のため、4 * 4 より小さいものは受け取らない
+    solve(argv[2]);        // 簡単のため、5 * 8 より小さいものは受け取らない
 
     return 0;
 }
