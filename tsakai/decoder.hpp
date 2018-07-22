@@ -29,6 +29,7 @@ namespace decoder{
       FusionS,
       Void,
       GFill,
+      GVoid
       };
   
   // command to index =  [01234567]
@@ -199,6 +200,23 @@ namespace decoder{
       //[«nd»5001]8 [«fd.dx»8]8 [«fd.dy»8]8 [«fd.dz»8]8
       //For example, GFill <0,-1,0> <10,-15,20> is encoded as [01010001] [00101000] [00001111] [00110010].
       ret.first = CommandType::GFill;
+      int nd = getVal(bits, 0, 4);
+      cnt = fread(&x, 1, 1, fp);
+      std::vector<int> bits2 = getBits(x);
+      int fd_x = getVal(bits2, 0, 7);
+      fread(&y, 1, 1, fp);
+      std::vector<int> bits3 = getBits(y);
+      int fd_y = getVal(bits3, 0, 7);
+      fread(&z, 1, 1, fp);
+      std::vector<int> bits4 = getBits(z);
+      int fd_z = getVal(bits4, 0, 7);
+      option.emplace_back(getnd(nd));
+      option.emplace_back(getfd(fd_x, fd_y, fd_z));
+    } else if (isSame(bits, std::string("*****000"))){
+      //GVoid nd fd:
+      //[«nd»5000]8 [«fd.dx»8]8 [«fd.dy»8]8 [«fd.dz»8]8
+      //For example, GVoid <1,0,0> <5,5,-5> is encoded as [10110000] [00100011] [00100011] [00011001].
+      ret.first = CommandType::GVoid;
       int nd = getVal(bits, 0, 4);
       cnt = fread(&x, 1, 1, fp);
       std::vector<int> bits2 = getBits(x);
