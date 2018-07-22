@@ -101,30 +101,6 @@ bool clear_table(State &s, Vec3 &p1, Vec3 &p2, int h)
     return true;
 }
 
-bool clear_table_outer(State &s, Vec3 &p1, Vec3 &p2, int h)
-{
-    int lx = min(p1.x, p2.x), rx = max(p1.x, p2.x),
-        lz = min(p1.z, p2.z), rz = max(p1.z, p2.z);
-    for (int i = lx; i <= rx; i++) {
-        for (int j = lz; j <= rz; j++) {
-            if (s.matrix(j, h, i) && (h != 0 && !s.matrix(j, h-1, i))) return false;
-        }
-    }
-    return true;
-}
-
-bool clear_table_inner(State &s, Vec3 &p1, Vec3 &p2, int h)
-{
-    int lx = min(p1.x, p2.x), rx = max(p1.x, p2.x),
-        lz = min(p1.z, p2.z), rz = max(p1.z, p2.z);
-    for (int i = lx; i <= rx; i++) {
-        for (int j = lz; j <= rz; j++) {
-            if (s.matrix(j, h, i) && (h == 0 || s.matrix(j, h-1, i))) return false;
-        }
-    }
-    return true;
-}
-
 bool clear_once(State &s, int bnum, Vec3 &p1, Vec3 &p2)
 {
     int dx[5] = {0, -1, 0, 1, 0};
@@ -134,42 +110,6 @@ bool clear_once(State &s, int bnum, Vec3 &p1, Vec3 &p2)
         if (min(p1.z, p2.z) <= s.bots(bnum).pos().z + des.z && max(p1.z, p2.z) >= s.bots(bnum).pos().z + des.z &&
             min(p1.x, p2.x) <= s.bots(bnum).pos().x + des.x && max(p1.x, p2.x) >= s.bots(bnum).pos().x + des.x &&
                 s.matrix()(s.bots(bnum).pos().z + des.z, s.bots(bnum).pos().y + des.y, s.bots(bnum).pos().x + des.x)) {
-            s.bots(bnum).empty(des);
-            return true;
-        }
-    }
-    return false;
-}
-
-bool clear_once_outer(State &s, int bnum, Vec3 &p1, Vec3 &p2)
-{
-    int dx[5] = {0, -1, 0, 1, 0};
-    int dz[5] = {0, 0, -1, 0, 1};
-    for (int i = 0; i < 5; i++) {
-        Vec3 des(dx[i], -1, dz[i]);
-        if (min(p1.z, p2.z) <= s.bots(bnum).pos().z + des.z && max(p1.z, p2.z) >= s.bots(bnum).pos().z + des.z &&
-            min(p1.x, p2.x) <= s.bots(bnum).pos().x + des.x && max(p1.x, p2.x) >= s.bots(bnum).pos().x + des.x &&
-                s.matrix()(s.bots(bnum).pos().z + des.z, s.bots(bnum).pos().y + des.y, s.bots(bnum).pos().x + des.x) &&
-                (s.bots(bnum).pos().y + des.y != 0 && 
-                 !s.matrix()(s.bots(bnum).pos().z + des.z, s.bots(bnum).pos().y + des.y - 1, s.bots(bnum).pos().x + des.x))) {
-            s.bots(bnum).empty(des);
-            return true;
-        }
-    }
-    return false;
-}
-
-bool clear_once_inner(State &s, int bnum, Vec3 &p1, Vec3 &p2)
-{
-    int dx[5] = {0, -1, 0, 1, 0};
-    int dz[5] = {0, 0, -1, 0, 1};
-    for (int i = 0; i < 5; i++) {
-        Vec3 des(dx[i], -1, dz[i]);
-        if (min(p1.z, p2.z) <= s.bots(bnum).pos().z + des.z && max(p1.z, p2.z) >= s.bots(bnum).pos().z + des.z &&
-            min(p1.x, p2.x) <= s.bots(bnum).pos().x + des.x && max(p1.x, p2.x) >= s.bots(bnum).pos().x + des.x &&
-                s.matrix()(s.bots(bnum).pos().z + des.z, s.bots(bnum).pos().y + des.y, s.bots(bnum).pos().x + des.x) &&
-                (s.bots(bnum).pos().y + des.y == 0 ||
-                 s.matrix()(s.bots(bnum).pos().z + des.z, s.bots(bnum).pos().y + des.y - 1, s.bots(bnum).pos().x + des.x))) {
             s.bots(bnum).empty(des);
             return true;
         }
@@ -192,39 +132,7 @@ void move_near(State &s, int bnum, Vec3 &p1, Vec3 &p2)
     }
 }
 
-void move_near_outer(State &s, int bnum, Vec3 &p1, Vec3 &p2)
-{
-    int lx = min(p1.x, p2.x), rx = max(p1.x, p2.x),
-        lz = min(p1.z, p2.z), rz = max(p1.z, p2.z);
-    int h = s.bots(bnum).pos().y-1;
-    for (int i = lx; i <= rx; i++) {
-        for (int j = lz; j <= rz; j++) {
-            if (s.matrix(j, h, i) &&
-                    (h != 0 && !s.matrix(j, h-1, i))) {
-                move_once(s, bnum, s.bots(bnum).pos(), Vec3(i,h+1,j));
-                return;
-            }
-        }
-    }
-}
-
-void move_near_inner(State &s, int bnum, Vec3 &p1, Vec3 &p2)
-{
-    int lx = min(p1.x, p2.x), rx = max(p1.x, p2.x),
-        lz = min(p1.z, p2.z), rz = max(p1.z, p2.z);
-    int h = s.bots(bnum).pos().y-1;
-    for (int i = lx; i <= rx; i++) {
-        for (int j = lz; j <= rz; j++) {
-            if (s.matrix(j, h, i) &&
-                    (h == 0 || s.matrix(j, h-1, i))) {
-                move_once(s, bnum, s.bots(bnum).pos(), Vec3(i,h+1,j));
-                return;
-            }
-        }
-    }
-}
-
-void solve(const char *fname)
+void solve()
 {
     State state(targ, BOT_COUNT);
 
@@ -297,23 +205,10 @@ void solve(const char *fname)
             bool finish = true;
             for (int j = 0; j < state.num_bots(); j++) {
                 bool j_clear = 
-                    clear_table_outer(state, data[j].fir, data[j].sec, i-1);
+                    clear_table(state, data[j].fir, data[j].sec, i-1);
                 finish &= j_clear;
-                if (!j_clear && !clear_once_outer(state, j, data[j].fir, data[j].sec)) {
-                    move_near_outer(state, j, data[j].fir, data[j].sec);
-                }
-            }
-            state.commit();
-            if (finish) break;
-        }
-        while (1) {
-            bool finish = true;
-            for (int j = 0; j < state.num_bots(); j++) {
-                bool j_clear = 
-                    clear_table_inner(state, data[j].fir, data[j].sec, i-1);
-                finish &= j_clear;
-                if (!j_clear && !clear_once_inner(state, j, data[j].fir, data[j].sec)) {
-                    move_near_inner(state, j, data[j].fir, data[j].sec);
+                if (!j_clear && !clear_once(state, j, data[j].fir, data[j].sec)) {
+                    move_near(state, j, data[j].fir, data[j].sec);
                 }
             }
             state.commit();
@@ -344,22 +239,19 @@ void solve(const char *fname)
     state.bots(0).halt();
     state.commit();
 
-    export_backward_trace(fname, state);
+    export_backward_trace("myans029.nbt", state);
 
 }
 
-signed main(int argc, char *argv[])
+signed main()
 {
     std::ios::sync_with_stdio(false);
     std::cin.tie(0);
 
-    if (argc != 3) {
-        cout << "input error" << endl;
-        return 0;
-    }
+    string fn; cin >> fn;
+    targ = read_data(fn);
 
-    targ = read_data(string(argv[1]));
-    solve(argv[2]);        // 簡単のため、4 * 4 より小さいものは受け取らない
+    solve();        // 簡単のため、4 * 4 より小さいものは受け取らない
 
     return 0;
 }

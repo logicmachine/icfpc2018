@@ -158,7 +158,7 @@ struct Box {
 
 	template <typename F>
 	void each(F&& f) const {
-		for(int i = q.z; i <= q.z; ++i){
+		for(int i = p.z; i <= q.z; ++i){
 			for(int j = p.y; j <= q.y; ++j){
 				for(int k = p.x; k <= q.x; ++k){ f(i, j, k); }
 			}
@@ -202,14 +202,9 @@ public:
 
 	static VoxelGrid load_model(const char *filename){
 		std::ifstream ifs(filename, std::ios::in | std::ios::binary);
-		ifs.seekg(0, std::ios_base::end);
-		const auto tail_pos = ifs.tellg();
-		ifs.seekg(0, std::ios_base::beg);
-		const size_t size = (tail_pos - ifs.tellg()) * 8;
-		size_t r = 1;
-		while((r + 1) * (r + 1) * (r + 1) <= size){ ++r; }
+		const size_t r = ifs.get();
 		VoxelGrid vg(r);
-		for(size_t i = 0; i < size; i += 8){
+		for(size_t i = 0; i < r * r * r; i += 8){
 			int c = ifs.get();
 			for(size_t k = i; k < i + 8 && k < r * r * r; ++k){
 				const size_t z = k % r, y = (k / r) % r, x = k / (r * r);
