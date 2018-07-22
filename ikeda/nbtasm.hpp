@@ -38,6 +38,13 @@ struct Vec3 {
 	Vec3& operator+=(const Vec3& v) noexcept { x += v.x; y += v.y; z += v.z; return *this; }
 	Vec3& operator-=(const Vec3& v) noexcept { x -= v.x; y -= v.y; z -= v.z; return *this; }
 
+	Vec3 operator*(int s) const noexcept { return Vec3{ x * s, y * s, z * s }; }
+	Vec3& operator*=(int s) noexcept { x *= s; y *= s; z *= s; return *this; }
+
+	bool region_check(int r) const noexcept {
+		return 0 <= x && x < r && 0 <= y && y < r && 0 <= z && z < r;
+	}
+
 	int mlen() const noexcept { return abs(x) + abs(y) + abs(z); }
 
 	unsigned int encode_near_distance() const noexcept {
@@ -1023,7 +1030,7 @@ public:
 			}else if(c.type == CommandType::Fission){
 				const auto sp = detail::split_seeds(b.seeds, c.fission_m() + 1);
 				new_bots.push_back(Bot{ b.bid, b.pos, sp.second });
-				const int new_bid = __builtin_ctz(sp.first);
+				const int new_bid = __builtin_ctzll(sp.first);
 				new_bots.push_back(Bot{ new_bid, b.pos + c.fission_nd(), sp.first & ~(1u << new_bid) });
 			}else if(c.type == CommandType::Fill){
 				new_bots.push_back(b);
