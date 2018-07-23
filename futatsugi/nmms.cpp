@@ -19,7 +19,7 @@ using namespace std;
 constexpr int NBOTS = 40;
 //constexpr int NROWS = 5;
 //constexpr int NCOLS = 8;
-constexpr int VOXELS_PER_BOT = 10;
+constexpr int VOXELS_PER_BOT = 1;
 
 typedef pair<string, vector<int>> command_t;
 
