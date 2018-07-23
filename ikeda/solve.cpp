@@ -297,24 +297,34 @@ void solve(const char *fname)
             }
         }
     }
-       
+      /* 
     cerr << " 探索範囲 : (" << xl << "," << xr << "), (" << 
         yl << "," << yr << "), (" << 
         zl << "," << zr << ")" << endl;
+    */
+    if (xr - xl < BOT_X || zr - zl < BOT_Z) {
+        cerr << "small case" << endl;
+        cerr << " 探索範囲 : (" << xl << "," << xr << "), (" << 
+            yl << "," << yr << "), (" << 
+            zl << "," << zr << ")" << endl;
+        cerr << " 処理幅 " << xr - xl << " , " << zr - zl << endl;
+        return ;
+    }
           
     while (!move_once(state,0,state.bots(0).pos(),Vec3(0, yr+1, 0))) {
+    dump(state);
         state.commit();
     }
+    dump(state);
 
     int dx = (xr - xl + 1) / BOT_X, ex = (xr - xl + 1) % BOT_X, 
         dz = (zr - zl + 1) / BOT_Z;
-    if (!dx || !dz) return;
 
     vector<pair<Vec3, Vec3>> data(BOT_COUNT);
     int pos = 1;
-    for (int i = xr; i > xl; i -= dx) {
+    for (int i = xr; i >= xl; i -= dx) {
         int ez = (zr - zl + 1) % BOT_Z;
-        for (int j = zr; j > zl; j -= dz) {
+        for (int j = zr; j >= zl; j -= dz) {
             data[pos++] = mp(Vec3(i, yr+1, j), 
                     Vec3(i-dx+1-!!(ex), yr+1, j-dz+1-!!(ez)));
             if (ez) {
@@ -328,7 +338,7 @@ void solve(const char *fname)
             i--;
         }
     }
-    /*
+    /*   
     for (int i = 0; i < data.size(); i++) {
         cout << data[i].fir << " -> " << data[i].sec << endl;
     }
