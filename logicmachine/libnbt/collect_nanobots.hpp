@@ -23,7 +23,7 @@ void collect_nanobots_x(State& s){
 			}else{
 				int target = p.x;
 				while(target > 0 && move_ic.set(Vec3(target - 1, p.y, p.z))){ --target; }
-				s.bots(i).smove(Vec3(max(target - p.x, -MAX_LONG_DISTANCE), 0, 0));
+				s.bots(i).smove(Vec3(std::max(target - p.x, -MAX_LONG_DISTANCE), 0, 0));
 			}
 		}
 		s.commit();
@@ -49,7 +49,7 @@ void collect_nanobots_y(State& s){
 			}else{
 				int target = p.y;
 				while(target > 0 && move_ic.set(Vec3(p.x, target - 1, p.z))){ --target; }
-				s.bots(i).smove(Vec3(0, max(target - p.y, -MAX_LONG_DISTANCE), 0));
+				s.bots(i).smove(Vec3(0, std::max(target - p.y, -MAX_LONG_DISTANCE), 0));
 			}
 		}
 		s.commit();
@@ -75,7 +75,7 @@ void collect_nanobots_z(State& s){
 			}else{
 				int target = p.z;
 				while(target > 0 && move_ic.set(Vec3(p.x, p.y, target - 1))){ --target; }
-				s.bots(i).smove(Vec3(0, 0, max(target - p.z, -MAX_LONG_DISTANCE)));
+				s.bots(i).smove(Vec3(0, 0, std::max(target - p.z, -MAX_LONG_DISTANCE)));
 			}
 		}
 		s.commit();

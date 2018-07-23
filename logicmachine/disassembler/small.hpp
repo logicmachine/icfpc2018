@@ -3,10 +3,20 @@
 
 #include "../../nbtasm/nbtasm.hpp"
 #include "../libnbt/constants.hpp"
+#include "../libnbt/collect_nanobots.hpp"
+#include "../libnbt/no_conflict.hpp"
 
 using namespace std;
 
 class SmallSolver {
+
+private:
+	int vec2bits(const Vec3& v) const {
+		return (v.x > 0 ? 1 : 0) | (v.y > 0 ? 2 : 0) | (v.z > 0 ? 4 : 0);
+	}
+	Vec3 bits2vec(int b) const {
+		return Vec3((b & 1) ? 1 : 0, (b & 2) ? 1 : 0, (b & 4) ? 1 : 0);
+	}
 
 public:
 	static bool is_solvable(const State& s){
@@ -18,42 +28,55 @@ public:
 		auto b2v = [](int b){ return Vec3(b & 1, (b >> 1) & 1, (b >> 2) & 1); };
 		const int n = s.matrix().size();
 
-		s.bots(0).fission(Vec3(1, 0, 0), 2); // (0, 0, 0) -> (1, 0, 0)
-		s.commit();
-
-		s.bots(0).fission(Vec3(0, 1, 0), 1); // (0, 0, 0) -> (0, 1, 0)
-		s.commit();
-
-		s.bots(0).fission(Vec3(0, 0, 1), 1); // (0, 0, 0) -> (0, 0, 1)
-		s.commit();
-
-		for(int i = 1; i < n; i += MAX_LONG_DISTANCE){
-			const int len = min(MAX_LONG_DISTANCE, n - 1 - i);
-			s.bots(1).smove(Vec3(len, 0, 0)); // (0, 0, 0) -> (1, 0, 0)
-			s.bots(2).smove(Vec3(0, len, 0)); // (0, 0, 0) -> (0, 1, 0)
-			s.bots(3).smove(Vec3(0, 0, len)); // (0, 0, 0) -> (0, 0, 1)
-			s.commit();
+		int x_max = 0, y_max = 0, z_max = 0;
+		for(int z = 0; z < n; ++z){
+			for(int y = 0; y < n; ++y){
+				for(int x = 0; x < n; ++x){
+					if(!s.matrix(z, y, x)){ continue; }
+					x_max = max(x_max, x);
+					y_max = max(y_max, y);
+					z_max = max(z_max, z);
+				}
+			}
 		}
+		++x_max;
+		++z_max;
 
-		s.bots(1).fission(Vec3(0, 0, 1), 1); // (1, 0, 0) -> (1, 0, 1)
-		s.bots(2).fission(Vec3(1, 0, 0), 0); // (0, 1, 0) -> (1, 1, 0)
-		s.bots(3).fission(Vec3(0, 1, 0), 0); // (0, 0, 1) -> (0, 1, 1)
-		s.commit();
+		vector<int> to_fission = {
+			7, // ()   -> (x, y, z)
+			2, // (x)  -> (xy)
+			4, // (y)  -> (yz)
+			4, // (xy) -> (xyz)
+			1, // (z)  -> (xz)
+			0,
+			0,
+			0
+		};
 
-		for(int i = 1; i < n; i += MAX_LONG_DISTANCE){
-			const int len = min(MAX_LONG_DISTANCE, n - 1 - i);
-			s.bots(2).smove(Vec3(0, 0, len)); // (1, 0, 0) -> (1, 0, 1)
-			s.bots(4).smove(Vec3(len, 0, 0)); // (0, 1, 0) -> (1, 1, 0)
-			s.bots(6).smove(Vec3(0, len, 0)); // (0, 0, 1) -> (0, 1, 1)
-			s.commit();
-		}
-
-		s.bots(2).fission(Vec3(0, 1, 0), 0); // (1, 0, 1) -> (1, 1, 1)
-		s.commit();
-
-		for(int i = 1; i < n; i += MAX_LONG_DISTANCE){
-			const int len = min(MAX_LONG_DISTANCE, n - 1 - i);
-			s.bots(3).smove(Vec3(0, len, 0)); // (1, 0, 1) -> (1, 1, 1)
+		while(true){
+			bool done_flag = true;
+			for(int i = 0; i < s.num_bots(); ++i){
+				const auto p = s.bots(i).pos();
+				if(p.x > 0 && p.x < x_max){
+					dispatch_move_no_conflict(s, i, Vec3(x_max, p.y, p.z));
+					done_flag = false;
+				}else if(p.y > 0 && p.y < y_max){
+					dispatch_move_no_conflict(s, i, Vec3(p.x, y_max, p.z));
+					done_flag = false;
+				}else if(p.z > 0 && p.z < z_max){
+					dispatch_move_no_conflict(s, i, Vec3(p.x, p.y, z_max));
+					done_flag = false;
+				}else{
+					const int id = vec2bits(s.bots(i).pos());
+					if(to_fission[id] == 0){ continue; }
+					const int to = __builtin_ctz(to_fission[id]);
+					const int m = __builtin_popcountll(s.bots(i).seeds());
+					to_fission[id] ^= (1 << to);
+					s.bots(i).fission(bits2vec(1 << to), m / 2);
+					done_flag = false;
+				}
+			}
+			if(done_flag){ break; }
 			s.commit();
 		}
 
@@ -61,56 +84,17 @@ public:
 			const int fsize = n - 3;
 			const auto p = s.bots(i).pos();
 			const Vec3 nd(p.x ? -1 : 1, 0, p.z ? -1 : 1);
-			const Vec3 fd(nd.x * fsize, (p.y ? -1 : 1) * (n - 1), nd.z * fsize);
+			const Vec3 fd(
+				(p.x ? -1 : 1) * (x_max - 2),
+				(p.y ? -1 : 1) * y_max,
+				(p.z ? -1 : 1) * (z_max - 2));
 			s.bots(i).gempty(nd, fd);
 		}
 		s.commit();
 
-		for(int i = 1; i < n; i += MAX_LONG_DISTANCE){
-			const int len = min(MAX_LONG_DISTANCE, n - 1 - i);
-			s.bots(3).smove(Vec3(0, -len, 0)); // (1, 1, 1) -> (1, 0, 1)
-			s.commit();
-		}
-
-		s.bots(2).fusion_p(Vec3(0,  1, 0)); // (1, 1, 1) -> (1, 0, 1) -> (1, 1, 1)
-		s.bots(3).fusion_s(Vec3(0, -1, 0));
-		s.commit();
-
-		for(int i = 1; i < n; i += MAX_LONG_DISTANCE){
-			const int len = min(MAX_LONG_DISTANCE, n - 1 - i);
-			s.bots(2).smove(Vec3(0, 0, -len)); // (1, 0, 1) -> (1, 0, 0)
-			s.bots(4).smove(Vec3(-len, 0, 0)); // (1, 1, 0) -> (0, 1, 0)
-			s.bots(6).smove(Vec3(0, -len, 0)); // (0, 1, 1) -> (0, 0, 1)
-			s.commit();
-		}
-
-		s.bots(1).fusion_p(Vec3( 0,  0,  1)); // (1, 0, 1) -> (1, 0, 0)
-		s.bots(2).fusion_s(Vec3( 0,  0, -1)); // (1, 0, 1) -> (1, 0, 0)
-		s.bots(3).fusion_p(Vec3( 1,  0,  0)); // (1, 1, 0) -> (0, 1, 0)
-		s.bots(4).fusion_s(Vec3(-1,  0,  0)); // (1, 1, 0) -> (0, 1, 0)
-		s.bots(5).fusion_p(Vec3( 0,  1,  0)); // (0, 1, 1) -> (0, 0, 1)
-		s.bots(6).fusion_s(Vec3( 0, -1,  0)); // (0, 1, 1) -> (0, 0, 1)
-		s.commit();
-
-		for(int i = 1; i < n; i += MAX_LONG_DISTANCE){
-			const int len = min(MAX_LONG_DISTANCE, n - 1 - i);
-			s.bots(1).smove(Vec3(-len, 0, 0)); // (1, 0, 0) -> (0, 0, 0)
-			s.bots(2).smove(Vec3(0, -len, 0)); // (0, 1, 0) -> (0, 0, 0)
-			s.bots(3).smove(Vec3(0, 0, -len)); // (0, 0, 1) -> (0, 0, 0)
-			s.commit();
-		}
-
-		s.bots(0).fusion_p(Vec3( 1, 0, 0));
-		s.bots(1).fusion_s(Vec3(-1, 0, 0));
-		s.commit();
-
-		s.bots(0).fusion_p(Vec3(0,  1, 0));
-		s.bots(1).fusion_s(Vec3(0, -1, 0));
-		s.commit();
-
-		s.bots(0).fusion_p(Vec3(0, 0,  1));
-		s.bots(1).fusion_s(Vec3(0, 0, -1));
-		s.commit();
+		collect_nanobots_x(s);
+		collect_nanobots_y(s);
+		collect_nanobots_z(s);
 
 		s.bots(0).halt();
 		s.commit();
