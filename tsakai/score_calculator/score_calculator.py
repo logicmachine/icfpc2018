@@ -9,6 +9,8 @@
 
 import os
 import csv
+import configparser
+
 from time import sleep
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -17,8 +19,71 @@ from selenium.webdriver.support.ui import Select
 kSteps = 90
 
 kProblemDir = "problemsF"
-kNBTDir = "dfltTracesF"
-kIsChrome = True
+#kNBTDir = "dfltTracesF"
+kNBTDir = "tmp"
+
+class ConfigReader:
+    def __init__(self):
+        print("HOOHOHOH")
+        inifile = configparser.ConfigParser()
+        inifile.read('settings.conf')
+        self.browser = inifile.get('Global','Browser')
+        if (self.browser == "Chrome"): 
+            self.is_chrome = True
+        else :
+            self.is_chrome = False
+
+        self.visualizer = inifile.get('Global', 'visualizer')
+        self.visualizer = self.convert_to_bool(self.visualizer)
+        self.problem_dir = inifile.get('Global', 'problem_dir')
+        self.nbt_dir = inifile.get('Global', 'nbt_dir')
+
+        # read FA
+        self.FA_solve = self.convert_to_bool(inifile.get('FA','FA_solve'))
+        self.FA_begin = int(inifile.get('FA', 'FA_begin'))
+        self.FA_end =  int(inifile.get('FA', 'FA_end'))
+
+        # read FD
+        self.FD_solve = self.convert_to_bool(inifile.get('FD','FD_solve'))
+        self.FD_begin = int(inifile.get('FD', 'FD_begin'))
+        self.FD_end =  int(inifile.get('FD', 'FD_end'))
+
+        # read FR
+        self.FR_solve = self.convert_to_bool(inifile.get('FR','FR_solve'))
+        self.FR_begin = int(inifile.get('FR', 'FR_begin'))
+        self.FR_end =  int(inifile.get('FR', 'FR_end'))
+
+    def convert_to_bool(self, var):
+        if var == "True" or var == "true":
+            return True
+        elif var == "False" or var == "false":
+            return False
+        else :
+            raise "Settings for True/False is wrong"
+
+    def print_test(self):
+        print("Global Settings")
+        print(self.browser)
+        print(self.is_chrome)
+        print(self.visualizer)
+        print(self.problem_dir)
+        print(self.nbt_dir)
+
+        print("FA")
+        print(self.FA_solve)
+        print(self.FA_begin)
+        print(self.FA_end)
+
+        print("FR")
+        print(self.FR_solve)
+        print(self.FR_begin)
+        print(self.FR_end)
+
+        print("FD")
+        print(self.FD_solve)
+        print(self.FD_begin)
+        print(self.FD_end)
+
 
 class Result:
     def __init__(self, result):
@@ -79,9 +144,9 @@ class Result:
         return self.energy
 
 class PageConfig:
-    def __init__(self, ):
-        self.vis = True
-        self.is_chrome = kIsChrome
+    def __init__(self, config_reader):
+        self.vis = config_reader.visualizer
+        self.is_chrome = config_reader.is_chrome
 
         self.current_dir = os.getcwd()
 
@@ -200,41 +265,66 @@ class PageConfig:
 # srcModelEmpty.click() # click to turn on or off checkbox
 # srcModelEmpty.is_selected()
 
+
+config_reader = ConfigReader()
+kProblemDir = config_reader.problem_dir
+kNBTDir = config_reader.nbt_dir
+
+
 f = open("result.csv", 'w')
 writer = csv.writer(f, lineterminator='\n')
 writer.writerow(["FA/FD/FR", "Case No", "status", "time", "commands", "energy"])
 
-page = PageConfig()
+page = PageConfig(config_reader)
 
 queries = ["FA", "FD", "FR"]
 tgt_or_src = [["tgt"],["src"],["tgt", "src"]]
 
+to_be_solve = [True, True, True]
+
+if (not config_reader.FA_solve):
+    to_be_solve[0] = False
+
+if (not config_reader.FD_solve):
+    to_be_solve[1] = False
+
+if (not config_reader.FR_solve):
+    to_be_solve[2] = False
+
 # range is [)
 #rangies = [[1, 186], [1, 186], [1, 115]]
-rangies = [[1, 5], [1, 5], [1, 5]]
-
-# writer.writerow(["FA/FD/FR", "Case No", "status", "time", "commands", "energy"])
+rangies = [
+        [config_reader.FA_begin, config_reader.FA_end], 
+        [config_reader.FD_begin, config_reader.FD_end], 
+        [config_reader.FR_begin, config_reader.FR_end], 
+        ]
 
 # for q in range(0, 3):
 for q in range(0, 3):
+    if not to_be_solve[q]:
+        continue
     r = rangies[q]
     problem_class = queries[q]
     for i in range(r[0], r[1]+1):
-        problem_num_str = "{:03d}".format(i)
-        print(problem_class)
-        print(problem_num_str)
-        page.set_in_file(problem_class, problem_num_str)
-        page.exec_trace()
-        page.camera_iikanji()
+        try: 
+            problem_num_str = "{:03d}".format(i)
+            print(problem_class)
+            print(problem_num_str)
+            page.set_in_file(problem_class, problem_num_str)
+            page.exec_trace()
+            page.camera_iikanji()
 
-        while True:
-            if page.is_execute_finished():
-                break
-            sleep(1)
+            while True:
+                if page.is_execute_finished():
+                    break
+                sleep(1)
 
-        result = page.get_result()
-        print("Status: {}, time: {}, commands: {}, energy: {}".format(result.status, result.time, result.commands, result.energy))
-        writer.writerow([problem_class, problem_class + problem_num_str, result.status, result.time, result.commands,result.energy])
+            result = page.get_result()
+            print("Status: {}, time: {}, commands: {}, energy: {}".format(result.status, result.time, result.commands, result.energy))
+            writer.writerow([problem_class, problem_class + problem_num_str, result.status, result.time, result.commands,result.energy])
+        except Exception:
+            print("exception")
+            writer.writerow([problem_class, problem_class + problem_num_str, "File Not Found", -1, -1, -1])
 
 
 
