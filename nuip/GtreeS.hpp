@@ -92,7 +92,7 @@ private:
 					}																									\
 					if(!foundX) break;																\
 				}																										\
-				if(maxVol==0) break;																\
+				if(maxVol<100) break;																\
 				re[make_pair(l,r)].emplace_back(a,b);								\
 				que.emplace(a,b);																		\
 				re[make_pair(a,b)];																	\
