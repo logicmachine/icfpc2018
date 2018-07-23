@@ -338,13 +338,16 @@ public:
 							const int yy = h[1] - h[0] - 1;
 							const int xx = hole_xs[gx + 1] - hole_xs[gx] - 2 * abs(nd3.x);
 							const int zz = hole_zs[gy + 1] - hole_zs[gy] - 2 * abs(nd3.z);
-							if(xx <= 0 || zz <= 0){ continue; }
+							if(xx < 0 || zz < 0){ continue; }
 							const Vec3 fd3(
 								xx * (d.x >= 0 ? 1 : -1),
 								yy * (hole_depth[i] == 0 ? 1 : -1),
 								zz * (d.y >= 0 ? 1 : -1));
 							const auto bp = s.bots(i).pos() + nd3;
 							const auto bq = bp + fd3;
+							if(yy == 0 && nd3.y < 0){ continue; }
+							if(xx == 0 && fd3.x < 0){ continue; }
+							if(zz == 0 && fd3.z < 0){ continue; }
 							if(s.matrix().test(bp, bq)){
 								s.bots(i).gempty(nd3, fd3);
 							}
