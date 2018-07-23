@@ -52,7 +52,6 @@ void collect_nanobots_y(State& s){
 				s.bots(i).smove(Vec3(0, max(target - p.y, -MAX_LONG_DISTANCE), 0));
 			}
 		}
-		s.dump_pending_commands(cerr);
 		s.commit();
 	}
 }
