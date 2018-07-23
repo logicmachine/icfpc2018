@@ -293,6 +293,11 @@ public:
 			// erase voxels
 			for(int h_hi = ceil_y; h_hi > 0; h_hi = max(0, h_hi - MAX_FAR_DISTANCE)){
 				const int h[] = { max(0, h_hi - MAX_FAR_DISTANCE), h_hi };
+				{	// test voxels
+					const Vec3 p(hole_xs[xs_lo], 0, hole_zs[ys_lo]);
+					const Vec3 q(hole_xs[xs_hi], h_hi, hole_zs[ys_hi]);
+					if(!s.matrix().test(p, q)){ break; }
+				}
 				// move nanobots vertically
 				for(int iter = 0; iter < 2; ++iter){
 					while(true){
@@ -329,7 +334,11 @@ public:
 								xx * (d.x >= 0 ? 1 : -1),
 								yy * (hole_depth[i] == 0 ? 1 : -1),
 								zz * (d.y >= 0 ? 1 : -1));
-							s.bots(i).gempty(nd3, fd3);
+							const auto bp = s.bots(i).pos() + nd3;
+							const auto bq = bp + fd3;
+							if(s.matrix().test(bp, bq)){
+								s.bots(i).gempty(nd3, fd3);
+							}
 						}
 					}
 					s.commit();
