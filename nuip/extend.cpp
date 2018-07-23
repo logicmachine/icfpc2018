@@ -162,10 +162,10 @@ public:
 };
 
 void dump(const State& s){
-	for(size_t i = 0; i < s.num_bots(); ++i){
-		std::cout << i << ": " << s.bots(i) << std::endl;
-	}
-	std::cout << std::endl;
+	// for(size_t i = 0; i < s.num_bots(); ++i){
+	// 	std::cout << i << ": " << s.bots(i) << std::endl;
+	// }
+	// std::cout << std::endl;
 }
 
 Vec3 hunt(const Tree &v,const set<Vec3> ban,const Vec3 p){
