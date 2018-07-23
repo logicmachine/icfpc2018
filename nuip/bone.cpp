@@ -1,4 +1,4 @@
-// #define STRONG_VALIDATION
+#define STRONG_VALIDATION
 #include "../nbtasm/nbtasm.hpp"
 #include "../nbtasm/backward.hpp"
 #include "read_model.hpp"
@@ -94,18 +94,49 @@ public:
 		// 	shake(1);
 		// 	initBan();
 		// }while(!ng.count(Vec3{0,0,0}));
+		out(num_bots(),1);
 		rep(i,num_bots()) bots(i).wait();
 		initBan();
+		int id=-1;
+		rep(i,num_bots())if(bots(i).pos()==Vec3{0,0,0}) id=i;
+		out(id,1);
+	  if(id>0){
+			auto tmp=move(Vec3{0,0,0},bots(0).pos());
+			reps(i,1,tmp.size()){
+				bots(0).smove(tmp[i]-tmp[i-1]);
+				commit();
+				dump(*this);
+			}
+			bots(0).fusion_p(bots(id).pos()-bots(0).pos());
+			bots(id).fusion_s(bots(0).pos()-bots(id).pos());
+			commit();
+		}
+		while(1){
+			int id=-1;
+			reps(i,1,num_bots())if(test_near_distance(bots(0).pos()-bots(i).pos())){
+				id=i; break;
+			}
+			out(id,num_bots(),1);
+			if(id<0) break;
+			bots(0).fusion_p(bots(id).pos()-bots(0).pos());
+			bots(id).fusion_s(bots(0).pos()-bots(id).pos());
+			commit();
+			dump(*this);
+		}
+		initBan();
 		auto tmp=move(Vec3{-1,0,-1},bots(0).pos());
+		out(tmp,1);
 		reps(i,1,tmp.size()){
 			bots(0).smove(tmp[i]-tmp[i-1]);
 			commit();
 		}
+		dump(*this); out(id,1);
 		while(num_bots()>1){
 			auto tmp=move(Vec3{0,0,0},bots(1).pos());
 			reps(i,1,tmp.size()){
 				bots(1).smove(tmp[i]-tmp[i-1]);
 				commit();
+				dump(*this);
 			}
 			bots(0).fusion_p(bots(1).pos());
 			bots(1).fusion_s(-bots(1).pos());
@@ -409,6 +440,7 @@ int main(int argc, char* argv[]){
 									break;
 								}
 								s.home();
+								dump(s);
 								s.bots(0).halt(); s.commit();
 								out("GIVE UP",file,1);
 								s.export_trace((file+"BONE.nbt").c_str());
