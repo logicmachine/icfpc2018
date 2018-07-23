@@ -6,6 +6,24 @@
 * full.confのprivateIDにチームのprivateIDを書く。
 * 必要なら、full.confの設定を変更する。(nbtファイルを格納するフォルダとzipファイルの名前を設定できる)
 
+### 例
+* `ikeda_result`と`tmp`に実行結果がおいてある例です。
+
+```
+$ ls -al
+合計 76
+drwxrwxr-x 5 tsakai tsakai  4096  7月 23 15:59 .
+drwxrwxr-x 8 tsakai tsakai  4096  7月 23 14:47 ..
+drwxrwxrwx 2 root   root   36864  7月 23 14:48 dfltTracesF
+-rw-rw-r-- 1 tsakai tsakai   287  7月 23 15:43 full.conf
+-rwxrwxr-x 1 tsakai tsakai  1199  7月 23 15:52 gen_zip.sh
+drwxrwxrwx 2 root   root    4096  7月 23 15:15 ikeda_result
+-rw-rw-r-- 1 tsakai tsakai  2200  7月 23 15:28 merge.py
+-rw-rw-r-- 1 tsakai tsakai 10303  7月 23 15:29 result_merged.csv
+drwxrwxrwx 2 root   root    4096  7月 23 15:15 tmp
+
+```
+
 ### 実行
 * 結果のzipファイルと、sha256をファイル名に持つtxtが生成される。
 
