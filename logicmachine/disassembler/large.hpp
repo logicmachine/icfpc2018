@@ -47,17 +47,27 @@ private:
 		return ret;
 	}
 
-	Vec2 random_direction_2d(const Array2D<uint8_t>& obstacles, const Vec2& p){
-		static const array<Vec2, 5> table = {
-			Vec2(1, 0), Vec2(0, 1), Vec2(-1, 0), Vec2(0, -1), Vec2(0, 0)
-		};
+	Vec2 random_move_2d(Array2D<uint8_t>& obstacles, const Vec2& p){
+		static const array<Vec2, 4> table = { Vec2(1, 0), Vec2(0, 1), Vec2(-1, 0), Vec2(0, -1) };
 		const Vec2 area(obstacles.cols(), obstacles.rows());
-		uniform_int_distribution<int> dist(0, 4);
+		uniform_int_distribution<int> dir_dist(0, 4);
+		uniform_int_distribution<int> len_dist(0, MAX_SHORT_DISTANCE);
 		Vec2 d;
-		do {
-			d = table[dist(engine)];
-		} while(d != Vec2() && !((p + d).region_check(area) && !obstacles(p + d)));
-		return d;
+		int len;
+		while(true){
+			d = table[dir_dist(engine)];
+			len = len_dist(engine);
+			bool accept = true;
+			for(int i = 1; i <= len; ++i){
+				if(!(p + d * i).region_check(area)){ accept = false; }
+				if(obstacles(p + d * i)){ accept = false; }
+			}
+			if(accept){ break; }
+		}
+		for(int i = 0; i <= len; ++i){
+			obstacles(p + d * i) = 1;
+		}
+		return d * len;
 	}
 
 
@@ -137,9 +147,8 @@ public:
 							if(p3.y < ceil_y){
 								s.bots(i).smove(Vec3(0, min(MAX_LONG_DISTANCE, ceil_y - p3.y), 0));
 							}else{
-								const Vec2 d = random_direction_2d(obstacles, p2);
+								const Vec2 d = random_move_2d(obstacles, p2);
 								s.bots(i).smove(Vec3(d.x, 0, d.y));
-								obstacles(p2 + d) = 1;
 							}
 						}else{
 							int target_y = p3.y;
@@ -188,17 +197,13 @@ public:
 						s.bots(i).smove(Vec3(0, min(MAX_LONG_DISTANCE, ceil_y - p3.y), 0));
 					}else{
 						const Vec2 p2(p3.x, p3.z);
-						const Vec2 d = random_direction_2d(obstacles, p2);
+						const Vec2 d = random_move_2d(obstacles, p2);
 						s.bots(i).smove(Vec3(d.x, 0, d.y));
-						obstacles(p2 + d) = 1;
 					}
 				}
 				s.commit();
 			}
 		}
-		// turn on harmonics
-		s.bots(0).flip();
-		s.commit();
 		// compute target rectangles
 		using tiiii = tuple<int, int, int, int>;
 		vector<tiiii> target_rectangles;
@@ -258,9 +263,8 @@ public:
 						const Vec2 p2(p3.x, p3.z);
 						if(holes_set.find(p2) != holes_set.end()){ continue; }
 						if(moves[i] == Vec2()){
-							const Vec2 d = random_direction_2d(obstacles, p2);
+							const Vec2 d = random_move_2d(obstacles, p2);
 							s.bots(i).smove(Vec3(d.x, 0, d.y));
-							obstacles(p2 + d) = 1;
 						}else{
 							s.bots(i).smove(Vec3(moves[i].x, 0, moves[i].y));
 						}
@@ -312,6 +316,11 @@ public:
 						s.commit();
 					}
 				}
+				// turn on harmonics
+				if(s.harmonics() == Harmonics::Low){
+					s.bots(0).flip();
+					s.commit();
+				}
 				// call gempty
 				for(int block = 0; block < 4; ++block){
 					const int by = (block >> 1), bx = (block & 1);
@@ -329,18 +338,22 @@ public:
 							const int yy = h[1] - h[0] - 1;
 							const int xx = hole_xs[gx + 1] - hole_xs[gx] - 2 * abs(nd3.x);
 							const int zz = hole_zs[gy + 1] - hole_zs[gy] - 2 * abs(nd3.z);
-							if(xx <= 0 || zz <= 0){ continue; }
+							if(xx < 0 || zz < 0){ continue; }
 							const Vec3 fd3(
 								xx * (d.x >= 0 ? 1 : -1),
 								yy * (hole_depth[i] == 0 ? 1 : -1),
 								zz * (d.y >= 0 ? 1 : -1));
 							const auto bp = s.bots(i).pos() + nd3;
 							const auto bq = bp + fd3;
+							if(yy == 0 && nd3.y < 0){ continue; }
+							if(xx == 0 && nd3.x < 0){ continue; }
+							if(zz == 0 && nd3.z < 0){ continue; }
 							if(s.matrix().test(bp, bq)){
 								s.bots(i).gempty(nd3, fd3);
 							}
 						}
 					}
+					// s.dump_pending_commands(cerr);
 					s.commit();
 				}
 			}
@@ -365,9 +378,8 @@ public:
 						const auto p = s.bots(i).pos();
 						if(p.y == ceil_y){
 							const Vec2 p2(p.x, p.z);
-							const Vec2 d = random_direction_2d(obstacles, p2);
+							const Vec2 d = random_move_2d(obstacles, p2);
 							s.bots(i).smove(Vec3(d.x, 0, d.y));
-							obstacles(p2 + d) = 1;
 						}else{
 							int target = p.y;
 							while(target < ceil_y && ic.set(Vec3(p.x, target + 1, p.z))){ ++target; }
@@ -379,8 +391,10 @@ public:
 			}
 		}
 		// turn off harmonics
-		s.bots(0).flip();
-		s.commit();
+		if(s.harmonics() == Harmonics::High){
+			s.bots(0).flip();
+			s.commit();
+		}
 
 		// collect and halt
 		collect_nanobots_y(s);

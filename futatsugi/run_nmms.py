@@ -24,9 +24,10 @@ def main(args):
 
     problem_id = int(args[1])
 
-    problem_file = "FA%03d_tgt.mdl" % problem_id
-    basename, ext = os.path.splitext(os.path.basename(fname))
+    problem_file = "./work/problemsF/FA%03d_tgt.mdl" % problem_id
+    basename, ext = os.path.splitext(os.path.basename(problem_file))
     command = "%s %s %s" % (COMMAND, problem_file, "%s_nf.nbt" % basename)
+    print(command) ####
     perform(command, sys.stdout)
 
 if __name__ == "__main__":
