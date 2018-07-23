@@ -58,4 +58,4 @@ echo "sha256 checksum"
 echo $shaid
 
 zipPrefix=`echo $zipFileName | cut -f 1 -d'.'`
-touch ${zipPrefix}_has_$shaid.txt
+touch ${zipPrefix}_has_$date_has_$shaid.txt

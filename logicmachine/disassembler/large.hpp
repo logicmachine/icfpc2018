@@ -317,10 +317,12 @@ public:
 					}
 				}
 				// turn on harmonics
+#ifndef DISABLE_HARMONICS
 				if(s.harmonics() == Harmonics::Low){
 					s.bots(0).flip();
 					s.commit();
 				}
+#endif
 				// call gempty
 				for(int block = 0; block < 4; ++block){
 					const int by = (block >> 1), bx = (block & 1);
@@ -391,10 +393,12 @@ public:
 			}
 		}
 		// turn off harmonics
+#ifndef DISABLE_HARMONICS
 		if(s.harmonics() == Harmonics::High){
 			s.bots(0).flip();
 			s.commit();
 		}
+#endif
 
 		// collect and halt
 		collect_nanobots_y(s);
