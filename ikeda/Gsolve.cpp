@@ -284,6 +284,51 @@ bool div_cmp(const Vec3 &p1, const Vec3 &p2, vector<pair<Vec3, Vec3>> &data)
     return make_tuple(p1x, p1.y, p1z) < make_tuple(p2x, p2.y, p2z);
 }
 
+bool super_FunamiYui_function(State &s, int yui, int kyoko, int akari, int chinatsu)
+{
+    //    cout << "Funami!" << endl;
+    Vec3 p1 = s.bots(yui).pos(), p2 = s.bots(kyoko).pos(), 
+    p3 = s.bots(akari).pos(), p4 = s.bots(chinatsu).pos();
+
+    if (p1.x == p3.x && p2.x == p4.x && p1.x < p2.x &&
+        p1.z == p2.z && p3.z == p4.z && p1.z < p3.z &&
+        p1.y == p2.y && p2.y == p3.y && p3.y == p4.y && 
+        p2.x - p1.x <= 30 && p3.z - p1.z <= 30) {
+        int h = p1.y - 1, lx = p1.x, rx = p2.x, lz = p1.z, rz = p3.z;
+
+        for (int i = lx; i <= rx; i++) {
+            for (int j = lz; j <= rz; j++) {
+                if (!s.matrix(j, h, i)) return false;
+            }
+        }
+        //cout << "Yui!" << endl;
+s.bots(yui).gempty(Vec3(0, -1, 0), Vec3(p2.x - p1.x, 0, p3.z - p1.z));
+s.bots(kyoko).gempty(Vec3(0, -1, 0), Vec3(p1.x - p2.x, 0, p3.z - p1.z));
+s.bots(akari).gempty(Vec3(0, -1, 0), Vec3(p2.x - p1.x, 0, p1.z - p3.z));
+s.bots(chinatsu).gempty(Vec3(0, -1, 0), Vec3(p1.x - p2.x, 0, p1.z - p3.z));
+        return true;
+    } else return false;
+}
+
+bool super_YuiKyo_function(State & state, int r)
+{
+    for (int yui = 0; yui < r; yui++) {
+        for (int chinatsu = 0; chinatsu < r; chinatsu++) {
+            if (yui == chinatsu) continue;
+            for (int kyoko = r-1; kyoko >= 0; kyoko--) {
+                if (yui == kyoko || chinatsu == kyoko) continue;
+                for (int akari = 0; akari < r; akari++) {
+                    if (yui == akari || kyoko == akari || 
+                            chinatsu == akari) continue;
+                    if (super_FunamiYui_function(
+                                state, yui, kyoko, akari, chinatsu))
+                        return true;
+                }
+            }
+        }
+    }
+    return false;
+}
 
 void solve(const char *fname)
 {
@@ -315,18 +360,17 @@ void solve(const char *fname)
             yl << "," << yr << "), (" << 
             zl << "," << zr << ")" << endl;
         cerr << " 処理幅 " << xr - xl << " , " << zr - zl << endl;
-        return ;
         */
+        // export_backward_trace(fname, state);
+        //return ;
         BOT_X = 2;
         BOT_Z = 2;
         BOT_COUNT = 4;
     }
           
     while (!move_once(state,0,state.bots(0).pos(),Vec3(0, yr+1, 0))) {
-    dump(state);
         state.commit();
     }
-    dump(state);
 
     int dx = (xr - xl + 1) / BOT_X, ex = (xr - xl + 1) % BOT_X, 
         dz = (zr - zl + 1) / BOT_Z;
@@ -383,6 +427,10 @@ void solve(const char *fname)
     }
 
     for (int i = yr+1; i > 0; i--) {
+        if (super_YuiKyo_function(state, r)) {
+            //dump(state);
+            state.commit();
+        }
         while (1) {
             bool finish = true;
             for (int j = 0; j < state.num_bots(); j++) {

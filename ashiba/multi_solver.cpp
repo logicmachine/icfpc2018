@@ -242,21 +242,23 @@ string getMovingPath(const State &s, const int &botn, const set<Vec3> &leaves, v
 		int d1_dist = rand()%5+11;
 
 		Vec3 cur = s.bots(botn).pos();
-		for(int i=0; i<d1_dist; i++){
-			Vec3 t = cur+dvec[d1];
-			if( not t.region_check(R) || s.matrix()(t.z, t.y, t.x) || vCood(t.z, t.y, t.x)){
-				cur -= dvec[(d1+3)%6];
+		for(int i=1; i<=d1_dist; i++){
+			cur+= dvec[d1];
+			if( not cur.region_check(R) || s.matrix()(cur.z, cur.y, cur.x) || vCood(cur.z, cur.y, cur.x)){
+				cur -= dvec[d1];
 				break;
 			}
-			else cur += dvec[d1];
+			// cout<<"along path"<<cur<<endl;
 		}
 
 		if( cur==s.bots(botn).pos() ){
+			assert(path.size()==0);
 			return "RANDOM_FAILED";
 		}else{
 			prv[cur] = s.bots(botn).pos();
-
+			// cout<<cur<<" to "<<s.bots(botn).pos()<<endl;
 			getPath(cur, prv, path);
+
 			return "RANDOM";
 		}
 	}
@@ -299,38 +301,6 @@ void fillVCoord(const Vec3 &s, const Vec3 &g, VoxelGrid &vCoord){
 }
 
 
-
-// void go_home(State &s){
-// 	while( 1 ){
-// 		VoxelGrid vCoord(s.matrix().r());
-// 		//set each bot's position as volatil coordinate
-// 		for(int botn=0; botn<s.num_bots(); botn++){
-// 			vCoord(s.bots(botn).pos().z, s.bots(botn).pos().y, s.bots(botn).pos().x) = 1;
-// 		}
-//
-// 		for(int botn=0; botn<s.num_bots(); botn++){
-// 			int cur = s.bots(botn.pos();
-// 			for(int dist=1; dist<=15; dist++){
-//
-// 			}
-//
-//
-//
-// 			while( cur.x>0 ){
-// 				for(int dist=1; dist<=15; dist++){
-// 					cur -= Vec3(1, 0, 0);
-// 					if( vCoord(cur.z, cur.y, cur.x) ){
-// 						cur += Vec3(1,0,0);
-// 					}
-// 				}
-// 				Vec3 nxt = s.bots(botn).pos()-Vec3(1, 0, 0);
-// 				if()
-// 				not vCoord(nxt.z, nxt.y, nxt.x)
-// 			}
-// 		}
-// 	}
-// }
-
 int main(int argc, char* argv[]){
 	srand((unsigned int)(time(NULL)));
 
@@ -338,8 +308,8 @@ int main(int argc, char* argv[]){
 	int R = vox.r();
 	// SEARCH_TIMES = max(SEARCH_TIMES, R/30);
 	int N = min(40, max((R-1)/3*3+1,4));
-	// cout<<"R: "<<R<<endl;
-	// cout<<"N: "<<N<<endl;
+	cout<<"R: "<<R<<endl;
+	cout<<"N: "<<N<<endl;
 
 	State s(vox, N);
 
@@ -377,11 +347,11 @@ int main(int argc, char* argv[]){
 	bool emer = false;
 	while(graph.getLeaves().size()){
 		vector<string> results(s.num_bots());
-		// cout<<turn++<<" "<<graph.getLeaves().size()<<endl;
+		cout<<"Turn: "<<turn++<<", Remaining leaves: "<<graph.getLeaves().size()<<endl;
 		// if(score.size()>=20)score.pop_front();
 		// score.push_back(graph.getLeaves().size());
 		// if(score.size()==20 && score.front()==score.back())break;
-		// if(turn>1278)break;
+		// if(turn>2)break;
 		VoxelGrid vCoord(R);
 
 		//set each bot's position as volatil coordinate
@@ -407,7 +377,10 @@ int main(int argc, char* argv[]){
 				if(path.size()){
 					// cout<<"bot"<<botn<<" found a root"<<endl;
 					assert( result=="MOVE_TO_LEAF" || "RANDOM" );
+					// cout<<"do smove"<<endl;
+					// cout<<result<<endl;
 					s.bots(botn).smove(path[0]);
+					// cout<<"done smove"<<endl;
 					fillVCoord(s.bots(botn).pos(), s.bots(botn).pos()+path[0], vCoord);
 					if(result=="MOVE_TO_LEAF"){
 						num_queried_nanobots++;
@@ -445,6 +418,13 @@ int main(int argc, char* argv[]){
 			break;
 		}
 	}
+
+	cout<<"End of erasing."<<endl;
+	
+	file=file.substr(0,5);
+	file[1]='A';
+	export_backward_trace((file.substr(0,5)+".nbt").c_str(), s);
+	file[1]='D';
 	s.export_trace((file.substr(0,5)+".nbt").c_str());
 
 
