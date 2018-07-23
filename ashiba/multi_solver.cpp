@@ -365,14 +365,13 @@ int main(int argc, char* argv[]){
 			// cout<<"bot "<<botn<<" start"<<endl;
 			if(reserved_leaves.size()==graph.getLeaves().size())continue;
 			if( isReachableLeafND(s.bots(botn).pos(), graph.getLeaves(), R, reserved_leaves)){
-				Vec3 v= getReachableLeavesPoint(s.bots(botn).pos(), graph.getLeaves(), R, reserved_leaves);
+				Vec3 v = getReachableLeavesPoint(s.bots(botn).pos(), graph.getLeaves(), R, reserved_leaves);
 				assert( reserved_leaves.insert(v).second );
 
 			}else{
 				vector<Vec3> path;
 				string result = getMovingPath(s, botn, graph.getLeaves(), path, vCoord, reserved_leaves);
 				results[botn] = result;
-
 
 				if(path.size()){
 					// cout<<"bot"<<botn<<" found a root"<<endl;
