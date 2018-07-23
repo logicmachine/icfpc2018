@@ -8,7 +8,7 @@ import glob
 import datetime
 
 #COMMAND = "/home/futatsugi/develop/contests/icfpc/2018/icfpc2018/futatsugi/nmms"
-COMMAND = "./nmms"
+COMMAND = "./nmms_parallel"
 
 def perform(command, logf):
     print(command) #####
@@ -27,7 +27,6 @@ def main(args):
     problem_file = "./work/problemsF/FA%03d_tgt.mdl" % problem_id
     basename, ext = os.path.splitext(os.path.basename(problem_file))
     command = "%s %s %s" % (COMMAND, problem_file, "%s_nf.nbt" % basename)
-    print(command) ####
     perform(command, sys.stdout)
 
 if __name__ == "__main__":
