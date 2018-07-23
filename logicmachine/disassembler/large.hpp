@@ -346,13 +346,14 @@ public:
 							const auto bp = s.bots(i).pos() + nd3;
 							const auto bq = bp + fd3;
 							if(yy == 0 && nd3.y < 0){ continue; }
-							if(xx == 0 && fd3.x < 0){ continue; }
-							if(zz == 0 && fd3.z < 0){ continue; }
+							if(xx == 0 && nd3.x < 0){ continue; }
+							if(zz == 0 && nd3.z < 0){ continue; }
 							if(s.matrix().test(bp, bq)){
 								s.bots(i).gempty(nd3, fd3);
 							}
 						}
 					}
+					// s.dump_pending_commands(cerr);
 					s.commit();
 				}
 			}
