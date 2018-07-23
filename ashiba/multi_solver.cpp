@@ -308,8 +308,8 @@ int main(int argc, char* argv[]){
 	int R = vox.r();
 	// SEARCH_TIMES = max(SEARCH_TIMES, R/30);
 	int N = min(40, max((R-1)/3*3+1,4));
-	cout<<"R: "<<R<<endl;
-	cout<<"N: "<<N<<endl;
+	// cout<<"R: "<<R<<endl;
+	// cout<<"N: "<<N<<endl;
 
 	State s(vox, N);
 
@@ -347,7 +347,7 @@ int main(int argc, char* argv[]){
 	bool emer = false;
 	while(graph.getLeaves().size()){
 		vector<string> results(s.num_bots());
-		cout<<"Turn: "<<turn++<<", Remaining leaves: "<<graph.getLeaves().size()<<endl;
+		// cout<<"Turn: "<<turn++<<", Remaining leaves: "<<graph.getLeaves().size()<<endl;
 		// if(score.size()>=20)score.pop_front();
 		// score.push_back(graph.getLeaves().size());
 		// if(score.size()==20 && score.front()==score.back())break;
@@ -419,8 +419,10 @@ int main(int argc, char* argv[]){
 		}
 	}
 
-	cout<<"End of erasing."<<endl;
-	
+	// cout<<"End of erasing."<<endl;
+	s.bots(0).halt();
+	s.commit();
+
 	file=file.substr(0,5);
 	file[1]='A';
 	export_backward_trace((file.substr(0,5)+".nbt").c_str(), s);
