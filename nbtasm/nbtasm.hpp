@@ -1102,7 +1102,7 @@ public:
 			}else if(c.type == CommandType::GFill){
 				const auto fd = c.gfill_fd();
 				if(fd.x >= 0 && fd.y >= 0 && fd.z >= 0){
-					const int region_size = std::max(fd.x, 1) * std::max(fd.y, 1) * std::max(fd.z, 1);
+					const int region_size = (fd.x + 1) * (fd.y + 1) * (fd.z + 1);
 					const int fill_count = m_matrix.fill(
 						b.pos + c.gfill_nd(), b.pos + c.gfill_nd() + c.gfill_fd(), 1);
 					m_energy += 12 * fill_count;
@@ -1111,7 +1111,7 @@ public:
 			}else if(c.type == CommandType::GEmpty){
 				const auto fd = c.gempty_fd();
 				if(fd.x >= 0 && fd.y >= 0 && fd.z >= 0){
-					const int region_size = std::max(fd.x, 1) * std::max(fd.y, 1) * std::max(fd.z, 1);
+					const int region_size = (fd.x + 1) * (fd.y + 1) * (fd.z + 1);
 					const int fill_count = m_matrix.fill(
 						b.pos + c.gempty_nd(), b.pos + c.gempty_nd() + c.gempty_fd(), 0);
 					m_energy -= 12 * fill_count;
