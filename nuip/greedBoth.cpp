@@ -415,7 +415,12 @@ BRK:
 			break;
 		}
 	}
-	//export_backward_trace((file.substr(0,5)+".nbt").c_str(), s);
+
+	file=file.substr(0,5);
+	file[1]='A';
+	export_backward_trace((file.substr(0,5)+".nbt").c_str(), s);
+	file[1]='D';
 	s.export_trace((file.substr(0,5)+".nbt").c_str());
+	
 	return 0;
 }

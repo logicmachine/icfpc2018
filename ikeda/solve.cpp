@@ -1,4 +1,5 @@
 #include <bits/stdc++.h>
+#include <cassert>
 
 #define STRONG_VALIDATION
 
@@ -212,6 +213,13 @@ void move_near_inner(State &s, int bnum, Vec3 &p1, Vec3 &p2)
 {
     int lx = min(p1.x, p2.x), rx = max(p1.x, p2.x),
         lz = min(p1.z, p2.z), rz = max(p1.z, p2.z);
+    Vec3 popos = s.bots(bnum).pos();
+    if (!(lx <= popos.x && popos.x <= rx && lz <= popos.z && popos.z <= rz)) {
+        cerr << popos << endl;
+        cerr << lx << " " << rx << " , " << lz << " " << rz << endl;
+        dump(s);
+        assert(0);
+    }
     int h = s.bots(bnum).pos().y-1;
     for (int i = lx; i <= rx; i++) {
         for (int j = lz; j <= rz; j++) {
@@ -224,6 +232,53 @@ void move_near_inner(State &s, int bnum, Vec3 &p1, Vec3 &p2)
     }
 }
 
+void region(State &s, vector<pair<Vec3, Vec3>> &list)
+{
+    if (s.num_bots() != list.size()) {
+        cout << "differeint size" << endl;
+        assert(0);
+        return;
+    }
+    rep(i, list.size()) {
+        Vec3 popos = s.bots(i).pos();
+        Vec3 p1 = list[i].fir, p2 = list[i].sec;
+        int lx = min(p1.x, p2.x), rx = max(p1.x, p2.x),
+            lz = min(p1.z, p2.z), rz = max(p1.z, p2.z);
+        if (!(lx <= popos.x && popos.x <= rx && lz <= popos.z && popos.z <= rz)) {
+            cerr << popos << endl;
+            cerr << lx << " " << rx << " , " << lz << " " << rz << endl;
+            dump(s);
+            assert(0);
+        }
+    }
+}
+
+bool div_cmp(const Vec3 &p1, const Vec3 &p2, vector<pair<Vec3, Vec3>> &data)
+{
+    int p1x = -1000, p2x = -1000, p1z = -1000, p2z = -1000;
+    Rep(i, data.size()) {
+        int lx = min(data[i].fir.x, data[i].sec.x), rx = max(data[i].fir.x, data[i].sec.x),
+            lz = min(data[i].fir.z, data[i].sec.z), rz = max(data[i].fir.z, data[i].sec.z);
+        if (lx <= p1.x && p1.x <= rx && lz <= p1.z && p1.z <= rz) {
+            p1x = (data.size()-i) / BOT_Z;
+            p1z = (data.size()-i) % BOT_Z;
+    //cout << p1 << " " << p1x << " " << p1z << " : " << i << endl;
+        }
+        if (lx <= p2.x && p2.x <= rx && lz <= p2.z && p2.z <= rz) {
+            p2x = (data.size()-i) / BOT_Z;
+            p2z = (data.size()-i) % BOT_Z;
+    //cout << p2 << " " << p2x << " " << p2z << " : " << i << endl;
+        }
+    }
+    if (p1x == -1000) p1x = p1z = 0;
+    if (p2x == -1000) p2x = p2z = 0;
+    //cout << make_tuple(p1.x/dx, p1.y, p1.z/dz) << " , " << 
+     //   make_tuple(p2.x/dx, p2.y, p2.z/dz) << endl;
+    //cout << p1.x/dx << " " << p1.x << " , " << p2.x/dx << " " << p2.x << endl;
+    return make_tuple(p1x, p1.y, p1z) < make_tuple(p2x, p2.y, p2z);
+}
+
+
 void solve(const char *fname)
 {
     State state(targ, BOT_COUNT);
@@ -234,7 +289,7 @@ void solve(const char *fname)
     for (int i = 0; i < r; i++) {
         for (int j = 0; j < r; j++) {
             for (int k = 0; k < r; k++) {
-                if (targ(i, j, k)) {
+                if (targ(k, j, i)) {
                     xl = min(xl, i); xr = max(xr, i);
                     yl = min(yl, j); yr = max(yr, j);
                     zl = min(zl, k); zr = max(zr, k);
@@ -242,17 +297,18 @@ void solve(const char *fname)
             }
         }
     }
-    /*
+       
     cerr << " 探索範囲 : (" << xl << "," << xr << "), (" << 
         yl << "," << yr << "), (" << 
         zl << "," << zr << ")" << endl;
-        */  
+          
     while (!move_once(state,0,state.bots(0).pos(),Vec3(0, yr+1, 0))) {
         state.commit();
     }
 
     int dx = (xr - xl + 1) / BOT_X, ex = (xr - xl + 1) % BOT_X, 
         dz = (zr - zl + 1) / BOT_Z;
+    if (!dx || !dz) return;
 
     vector<pair<Vec3, Vec3>> data(BOT_COUNT);
     int pos = 1;
@@ -265,7 +321,7 @@ void solve(const char *fname)
                 ez--;
                 j--;
             }
-            if (pos == BOT_COUNT) pos = 0;
+            if (pos == data.size()) pos = 0;
         }
         if (ex) {
             ex--;
@@ -273,11 +329,11 @@ void solve(const char *fname)
         }
     }
     /*
-    for (int i = 0; i < BOT_COUNT; i++) {
+    for (int i = 0; i < data.size(); i++) {
         cout << data[i].fir << " -> " << data[i].sec << endl;
     }
     */
-    for (int i = 1; i < BOT_COUNT; i++) {
+    for (int i = 1; i < data.size(); i++) {
         for (int j = 1; j < i; j++) {
             move_once(state,j,state.bots(j).pos(),data[j].fir);
         }
@@ -289,17 +345,17 @@ void solve(const char *fname)
         state.commit();
     }
 
-    for (int j = 1; j < BOT_COUNT; j++) {
+    for (int j = 1; j < data.size(); j++) {
         move_once(state,j,state.bots(j).pos(),data[j].fir);
     }
     state.commit();
-    for (int j = 1; j < BOT_COUNT; j++) {
+    for (int j = 1; j < data.size(); j++) {
         move_once(state,j,state.bots(j).pos(),data[j].fir);
     }
     state.commit();
 
     while (!move_once(state,0,state.bots(0).pos(),data[0].fir)) {
-        for (int j = 1; j < BOT_COUNT; j++) {
+        for (int j = 1; j < data.size(); j++) {
             move_once(state,j,state.bots(j).pos(),data[j].fir);
         }
         state.commit();
@@ -332,7 +388,7 @@ void solve(const char *fname)
             if (finish) break;
             state.commit();
         }
-        for (int j = 0; j < BOT_COUNT; j++) {
+        for (int j = 0; j < state.num_bots(); j++) {
             state.bots(j).smove(Vec3(0, -1, 0));
         }
         state.commit();
@@ -340,15 +396,15 @@ void solve(const char *fname)
 
     Vec3 merge_dz(1, 0, 0);
     while (state.num_bots() > BOT_Z) {
-        vi pos_bots(state.num_bots());
+        vi pos_bots(state.num_bots());  //  ここからバブルソート
         rep(i, pos_bots.size()) pos_bots[i] = i;
         rep(i, pos_bots.size()) { // Z 
             for (int j = pos_bots.size()-1; j > i; j--) {
-                if (state.bots(pos_bots[j]).pos() < state.bots(pos_bots[j-1]).pos())
+                if (div_cmp(state.bots(pos_bots[j]).pos(), state.bots(pos_bots[j-1]).pos(), data))  // <
                     swap(pos_bots[j], pos_bots[j-1]);
             }
         }
-        rep(i, pos_bots.size()) cout << pos_bots[i] << " "; cout << endl;
+        //rep(i, pos_bots.size()) cout << pos_bots[i] << " "; cout << endl;
         while (1) {
             bool adj = true;
             for (int i = 1; i <= BOT_Z; i++) {
@@ -358,31 +414,25 @@ void solve(const char *fname)
                         + merge_dz);
             }
             if (adj) break;
-            dump(state);
             state.commit();
         }
         for (int i = 1; i <= BOT_Z; i++) {
-            state.bots(pos_bots[state.num_bots()-i]).fusion_p(Vec3(-1, 0, 0));
-            state.bots(pos_bots[state.num_bots()-i-BOT_Z]).fusion_s(Vec3(1, 0, 0));
+            state.bots(pos_bots[state.num_bots()-i]).fusion_s(Vec3(-1, 0, 0));
+            state.bots(pos_bots[state.num_bots()-i-BOT_Z]).fusion_p(Vec3(1, 0, 0));
         }
-            dump(state);
         state.commit();
     }
 
-    while (!move_once(state,state.num_bots()-1,state.bots(state.num_bots()-1).pos(),Vec3(0, 0, 0))) {
+    while (!move_once(state,0,state.bots(0).pos(),Vec3(0, 0, 0))) {
         state.commit();
     }
-    dump(state);
 
-    rep(i, state.num_bots()-1) {
-        while (!move_once(state,state.num_bots()-2,state.bots(state.num_bots()-2).pos(),Vec3(1, 0, 0))) {
-            dump(state);
+    rep(i, BOT_Z-1) {
+        while (!move_once(state,state.num_bots()-1,state.bots(state.num_bots()-1).pos(),Vec3(1, 0, 0))) {
             state.commit();
         }
-        cout << state.num_bots()-1 << " " << state.num_bots()-2 << endl;
-        state.bots(state.num_bots()-1).fusion_p(Vec3{1, 0, 0});
-        state.bots(state.num_bots()-2).fusion_s(Vec3{-1, 0, 0});
-        dump(state);
+        state.bots(0).fusion_p(Vec3{1, 0, 0});
+        state.bots(state.num_bots()-1).fusion_s(Vec3{-1, 0, 0});
         state.commit();
     }
 
@@ -404,7 +454,7 @@ signed main(int argc, char *argv[])
     }
 
     targ = read_data(string(argv[1]));
-    solve(argv[2]);        // 簡単のため、4 * 4 より小さいものは受け取らない
+    solve(argv[2]);        // 簡単のため、5 * 8 より小さいものは受け取らない
 
     return 0;
 }

@@ -38,14 +38,7 @@ struct Vec3 {
 	Vec3& operator+=(const Vec3& v) noexcept { x += v.x; y += v.y; z += v.z; return *this; }
 	Vec3& operator-=(const Vec3& v) noexcept { x -= v.x; y -= v.y; z -= v.z; return *this; }
 
-	Vec3 operator*(int s) const noexcept { return Vec3{ x * s, y * s, z * s }; }
-	Vec3& operator*=(int s) noexcept { x *= s; y *= s; z *= s; return *this; }
-
-	bool region_check(int r) const noexcept {
-		return 0 <= x && x < r && 0 <= y && y < r && 0 <= z && z < r;
-	}
-
-	int mlen() const noexcept { return abs(x) + abs(y) + abs(z); }
+	int mlen() const noexcept { return std::abs(x) + std::abs(y) + std::abs(z); }
 
 	unsigned int encode_near_distance() const noexcept {
 		return (x + 1) * 9 + (y + 1) * 3 + (z + 1);
@@ -65,6 +58,14 @@ struct Vec3 {
 	unsigned int encode_far_distance() const noexcept {
 		return (x + 30) | ((y + 30) << 8) | ((z + 30) << 16);
 	}
+
+  int abs() const {
+    return std::abs(x) + std::abs(y) + std::abs(z);
+  }
+
+  int encode(const int r) const {
+    return z * r * r + y * r + x;
+  }
 
 	static Vec3 decode_near_distance(unsigned int x) noexcept {
 		return Vec3((x / 9) - 1, (x / 3 % 3) - 1, (x % 3) - 1);
@@ -158,7 +159,7 @@ struct Box {
 
 	template <typename F>
 	void each(F&& f) const {
-		for(int i = p.z; i <= q.z; ++i){
+		for(int i = q.z; i <= q.z; ++i){
 			for(int j = p.y; j <= q.y; ++j){
 				for(int k = p.x; k <= q.x; ++k){ f(i, j, k); }
 			}
@@ -183,7 +184,6 @@ namespace std {
 	};
 }
 
-
 class VoxelGrid {
 
 private:
@@ -202,9 +202,14 @@ public:
 
 	static VoxelGrid load_model(const char *filename){
 		std::ifstream ifs(filename, std::ios::in | std::ios::binary);
-		const size_t r = ifs.get();
+		ifs.seekg(0, std::ios_base::end);
+		const auto tail_pos = ifs.tellg();
+		ifs.seekg(0, std::ios_base::beg);
+		const size_t size = (tail_pos - ifs.tellg()) * 8;
+		size_t r = 1;
+		while((r + 1) * (r + 1) * (r + 1) <= size){ ++r; }
 		VoxelGrid vg(r);
-		for(size_t i = 0; i < r * r * r; i += 8){
+		for(size_t i = 0; i < size; i += 8){
 			int c = ifs.get();
 			for(size_t k = i; k < i + 8 && k < r * r * r; ++k){
 				const size_t z = k % r, y = (k / r) % r, x = k / (r * r);
@@ -222,6 +227,15 @@ public:
 		const int r = m_r;
 		return m_grid[i * r * r + j * r + k];
 	}
+  uint8_t operator()(const Vec3 &v) const {
+		const int r = m_r;
+		return m_grid[v.z * r * r + v.y * r + v.x];
+	}
+	uint8_t& operator()(const Vec3 &v){
+		const int r = m_r;
+		return m_grid[v.z * r * r + v.y * r + v.x];
+	}
+
 
 	int r() const noexcept { return m_r; }
 	int size() const noexcept { return m_r; }
@@ -531,8 +545,8 @@ struct CommandError : public std::logic_error {
 };
 
 static inline bool test_near_distance(const Vec3& v) noexcept {
-	if(abs(v.x) >= 2 || abs(v.y) >= 2 || abs(v.z) >= 2){ return false; }
-	if(abs(v.x) + abs(v.y) + abs(v.z) > 2){ return false; }
+	if(std::abs(v.x) >= 2 || std::abs(v.y) >= 2 || std::abs(v.z) >= 2){ return false; }
+	if(std::abs(v.x) + std::abs(v.y) + std::abs(v.z) > 2){ return false; }
 	return true;
 }
 static inline void throw_test_near_distance(const Vec3& v, const Bot& b, const Command& c){
@@ -1152,6 +1166,13 @@ std::ostream& operator<<(std::ostream& os, const State::BotReference& r){
 	os << "Bot{ bid=" << r.bid() << ", pos=" << r.pos() << ", seeds=";
 	detail::format_seeds(os, r.seeds());
 	return os << " }";
+}
+
+void dump(const State& s){
+	for(size_t i = 0; i < s.num_bots(); ++i){
+		std::cout << i << ": " << s.bots(i) << std::endl;
+	}
+	std::cout << std::endl;
 }
 
 #endif
