@@ -17,7 +17,7 @@ using namespace std;
 constexpr int NBOTS = 40;
 //constexpr int NROWS = 5;
 //constexpr int NCOLS = 8;
-constexpr int LIMIT_ACTIVES = 20;
+constexpr int LIMIT_ACTIVES = 10;
 
 typedef pair<string, vector<int>> command_t;
 
@@ -290,8 +290,8 @@ public:
 				//astar.set_volatile_map(agents[idx].pos);
 				//cerr << "check: " << Vec3{offset_x * i, 1, offset_z * j} << endl; ///// debug
 				astar.set(Vec3{0, 1, 0}, Vec3{offset_x * i, 1, offset_z * j});
-				//vector<Vec3> path = astar.search();
-				cerr << "npath: " << path.size() << endl; //// debug
+				vector<Vec3> path = astar.search();
+				//cerr << "npath: " << path.size() << endl; //// debug
 				s.bots(0).fission(Vec3{0, 1, 0}, 0);
 				s.commit();
 				vector<command_t> cmds = create_move_commands(path);
