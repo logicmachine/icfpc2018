@@ -1,4 +1,4 @@
 #!/bin/bash
-./bone.out $1
-./extend.out $1
+../nuip/bone.out $1
+../nuip/extend.out $1
 
