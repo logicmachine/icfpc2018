@@ -119,11 +119,11 @@ public:
 };
 
 
-
 struct PosData{
 	Vec3 pos;
 	int times;
 };
+
 
 int mlen(Vec3 a, Vec3 b){
 	return abs(a.x-b.x) + abs(a.y-b.y) + abs(a.z-b.z);
@@ -139,8 +139,6 @@ void getPath(const Vec3 &pos, map<Vec3, Vec3> &prv, vector<Vec3> &path){
 	}
 	reverse(path.begin(), path.end());
 }
-
-
 
 
 bool isReachableLeafND(const Vec3 &pos, const set<Vec3> &leaves, const int &R, const set<Vec3> &reserved){
@@ -159,6 +157,7 @@ bool isReachableLeafND(const Vec3 &pos, const set<Vec3> &leaves, const int &R, c
   return false;
 }
 
+
 Vec3 getReachableLeavesPoint(const Vec3 &pos, const set<Vec3> &leaves, const int &R, const set<Vec3> &reserved){
 	for(int dz=-1; dz<=1; dz++){
     for(int dy=-1; dy<=1; dy++){
@@ -175,7 +174,8 @@ Vec3 getReachableLeavesPoint(const Vec3 &pos, const set<Vec3> &leaves, const int
   return Vec3(-300, -300, -300);
 }
 
-string getMovingPath(const State &s, const int &botn, const set<Vec3> &leaves, vector<Vec3> &path, const VoxelGrid &vCood, set<Vec3> &reserved, const bool & emer){
+
+string getMovingPath(const State &s, const int &botn, const set<Vec3> &leaves, vector<Vec3> &path, const VoxelGrid &vCood, set<Vec3> &reserved){
 	int R = s.matrix().r();
 	int dx[]={1,0,0,-1,0,0};
 	int dy[]={0,0,1,0,0,-1};
@@ -194,7 +194,7 @@ string getMovingPath(const State &s, const int &botn, const set<Vec3> &leaves, v
 		Vec3 p = tmp.pos;
 		que.pop();
 
-		if( not emer && tmp.times+1<SEARCH_TIMES ){
+		if( tmp.times+1<SEARCH_TIMES ){
 			break;
 		}
 
@@ -301,19 +301,10 @@ void fillVCoord(const Vec3 &s, const Vec3 &g, VoxelGrid &vCoord){
 }
 
 
-int main(int argc, char* argv[]){
-	srand((unsigned int)(time(NULL)));
-
-	VoxelGrid vox = read_data(argv[1]);
-	int R = vox.r();
-	// SEARCH_TIMES = max(SEARCH_TIMES, R/30);
+void fissionNanobots(State &s){
+	int R = s.matrix().r();
 	int N = min(40, max((R-1)/3*3+1,4));
-	// cout<<"R: "<<R<<endl;
-	// cout<<"N: "<<N<<endl;
 
-	State s(vox, N);
-
-	//Fission to 3 direction
 	for(int i=0; i<N; i++){
 		if(i!=N-1) s.bots(0).fission(Vec3(i%3==0, i%3==1, i%3==2), 0);
 		for(int j=1; j<s.num_bots(); j++){
@@ -336,21 +327,30 @@ int main(int argc, char* argv[]){
 			}
 		}
 		s.commit();
-
 	}
+}
 
+
+int main(int argc, char* argv[]){
+	srand((unsigned int)(time(NULL)));
+
+	VoxelGrid vox = read_data(argv[1]);
+	int R = vox.r();
+	int N = min(40, max((R-1)/3*3+1,4));
+	// cout<<"R: "<<R<<endl;
+	// cout<<"N: "<<N<<endl;
+
+	State s(vox, N);
+
+	fissionNanobots(s);
 
 	Tree graph(vox);
 	assert( graph.getLeaves().size()>0 );
 
 	int turn = 1;
-	bool emer = false;
 	while(graph.getLeaves().size()){
 		vector<string> results(s.num_bots());
 		// cout<<"Turn: "<<turn++<<", Remaining leaves: "<<graph.getLeaves().size()<<endl;
-		// if(score.size()>=20)score.pop_front();
-		// score.push_back(graph.getLeaves().size());
-		// if(score.size()==20 && score.front()==score.back())break;
 		// if(turn>2)break;
 		VoxelGrid vCoord(R);
 
@@ -370,17 +370,15 @@ int main(int argc, char* argv[]){
 
 			}else{
 				vector<Vec3> path;
-				string result = getMovingPath(s, botn, graph.getLeaves(), path, vCoord, reserved_leaves, emer);
+				string result = getMovingPath(s, botn, graph.getLeaves(), path, vCoord, reserved_leaves);
 				results[botn] = result;
 
 
 				if(path.size()){
 					// cout<<"bot"<<botn<<" found a root"<<endl;
 					assert( result=="MOVE_TO_LEAF" || "RANDOM" );
-					// cout<<"do smove"<<endl;
 					// cout<<result<<endl;
 					s.bots(botn).smove(path[0]);
-					// cout<<"done smove"<<endl;
 					fillVCoord(s.bots(botn).pos(), s.bots(botn).pos()+path[0], vCoord);
 					if(result=="MOVE_TO_LEAF"){
 						num_queried_nanobots++;
@@ -401,13 +399,15 @@ int main(int argc, char* argv[]){
 		// 	cout<<"bot"<<i<<"result is"<<results[i-1]<<endl;
 		// }
 		s.commit();
-		if(emer)emer = false;
-		if(num_queried_nanobots<=N*1/3 )emer = true;
 	}
 
 	collect_nanobots_x(s);
 	collect_nanobots_y(s);
 	collect_nanobots_z(s);
+
+	s.bots(0).halt();
+	s.commit();
+
 
 	//Output results
 	string file(argv[1]);
@@ -418,10 +418,6 @@ int main(int argc, char* argv[]){
 			break;
 		}
 	}
-
-	// cout<<"End of erasing."<<endl;
-	s.bots(0).halt();
-	s.commit();
 
 	file=file.substr(0,5);
 	file[1]='A';
