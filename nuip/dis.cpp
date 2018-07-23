@@ -1,6 +1,6 @@
 #define STRONG_VALIDATION
 #include "../nbtasm/nbtasm.hpp"
-// #include "../nbtasm/backward.hpp"
+#include "../nbtasm/backward.hpp"
 #include "read_model.hpp"
 #include "Gtree.hpp"
 #include <string>
@@ -366,12 +366,16 @@ int main(int argc, char* argv[]){
 	dump(s);
 
 	while(s.g.getLeaves().begin()->X.y>=0){
+AIUEO:
 		s.initBan();
-		auto vec=s.getBox(0);
+		vector<int> id(8); iota(all(id),0); random_shuffle(all(id));
+		auto vec=s.getBox(id[0]);
 		if(vec.size()==0){
+			out("box not found",1);
 			s.shake();
 			if(SUGOIOP){
 				for(auto p:s.g.getLeaves()) cout<<p;cout<<endl;
+				s.export_trace("trace.nbt");
 				return 0;
 			}
 			SUGOIOP=1;
@@ -400,18 +404,23 @@ int main(int argc, char* argv[]){
 			int maxSize=0;
 			int minSize=MOD;
 			rrep(i,vs.size()){
-				way[i]=s.move(vs[i],s.bots(i).pos());
+				way[i]=s.move(vs[i],s.bots(id[i]).pos());
 				MX<int>(maxSize, way[i].size());
 				MN<int>(minSize, way[i].size());
 				reps(j,1,way[i].size()) s.ban(way[i][j-1],way[i][j]);
 			}
 			if(maxSize==1 && minSize==0){
+				out(way,1);
+				out("can't move",1);//‚Ù‚©‚ðŽŽ‚·
 				out(LB,RB,1);
 				SUGOIOP=1;
-				s.shake();
-				// s.export_trace(("trace.nbt"));
-				// return 0;
-				if(rand()%3) continue;
+				// s.shake();
+				if(rand()%10){
+					s.shake();
+					random_shuffle(all(id));
+					continue;
+				}
+				dump(s);
 			s.export_trace("trace.nbt");
 			for(auto p:s.g.getLeaves()) cout<<p;cout<<endl;
 			return 0;
@@ -420,21 +429,14 @@ int main(int argc, char* argv[]){
 			reps(j,1,10){
 				int upd=0;
 				rep(k,vs.size())if(j<way[k].size()){
-					s.bots(k).smove(way[k][j]-way[k][j-1]);
+					s.bots(id[k]).smove(way[k][j]-way[k][j-1]);
 					upd=1;
 				}
 				if(!upd) break;
 				s.commit();
-				if(LB==Vec3{18,1,6},way[1].size()==2,0){
-			int ready=1;
-			rep(i,vs.size())if(!test_near_distance(vs[i]-s.bots(i).pos())) ready=0;
-			out(ready,1);
-					s.export_trace("trace.nbt");
-					return 0;
-				}
 			}
 			int ready=1;
-			rep(i,vs.size())if(!test_near_distance(vs[i]-s.bots(i).pos())) ready=0;
+			rep(i,vs.size())if(!test_near_distance(vs[i]-s.bots(id[i]).pos())) ready=0;
 			if(ready) break;
 		}
 		dump(s);
@@ -442,11 +444,11 @@ int main(int argc, char* argv[]){
 		if(vs.size()==2) rep(i,2) vs.pb(vs[i]);
 		if(vs.size()==4) rep(i,4) vs.pb(vs[i]);
 		if(t==1){
-			s.bots(0).empty(vs[0]-s.bots(0).pos());			
+			s.bots(id[0]).empty(vs[0]-s.bots(id[0]).pos());			
 		}else{
 			rep(i,t){
-				assert(test_near_distance(vs[i]-s.bots(i).pos()));
-				s.bots(i).gempty(vs[i]-s.bots(i).pos(), vs[i^7]-vs[i]);
+				assert(test_near_distance(vs[i]-s.bots(id[i]).pos()));
+				s.bots(id[i]).gempty(vs[i]-s.bots(id[i]).pos(), vs[i^7]-vs[i]);
 			}
 		}
 		s.g.eraseLeaf(make_pair(LB,RB));
@@ -468,8 +470,12 @@ int main(int argc, char* argv[]){
 
 	out("DONE",1);
 
-#ifdef BACKWARD	
+#ifdef EXPORTBOTH
+	file=file.substr(0,5);
+	file[1]='A';
 	export_backward_trace((file.substr(0,5)+".nbt").c_str(), s);
+	file[1]='D';
+	s.export_trace((file.substr(0,5)+".nbt").c_str());
 #else	
 	s.export_trace((file.substr(0,5)+".nbt").c_str());
 #endif
