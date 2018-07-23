@@ -529,7 +529,7 @@ int main(int argc, char* argv[]){
 		preTrace=preTrace.substr(0,n-3)+"nbt";
 	}
 
-	string python="python cut.py " + preTrace+ " " + file + " " + file.substr(0,5)+".nbt";
+	string python="python ../nuip/cut.py " + preTrace+ " " + file + " " + file.substr(0,5)+".nbt";
 	system(python.c_str());
 	
 	return 0;
