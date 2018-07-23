@@ -9,13 +9,17 @@
 #include <cstdint>
 #include <cmath>
 
-#include "../nbtasm/nbtasm.hpp"
+//#include "../nbtasm/nbtasm.hpp"
+#include "nbtasm.hpp"
+
+//#define DEBUG_PRINT
 
 using namespace std;
 
-constexpr int NBOTS = 2;
-constexpr int NROWS = 2;
-constexpr int NCOLS = 1;
+constexpr int NBOTS = 40;
+//constexpr int NROWS = 5;
+//constexpr int NCOLS = 8;
+constexpr int VOXELS_PER_BOT = 10;
 
 typedef pair<string, vector<int>> command_t;
 
@@ -74,6 +78,9 @@ public:
 	int set_volatile_map(const Vec3& v) {
 		volatile_map.push_back(v);
 	}
+	const vector<Vec3>& get_volatile_map() const {
+		return volatile_map;
+	}
 	int clear_volatile_map() {
 		volatile_map.clear();
 	}
@@ -127,7 +134,7 @@ vector<Vec3> AStar::search()
 			queue.push(make_pair(distance(newpath) + heuristic(*p), newpath));
 		}
 		cnt++;
-		if (cnt > 1000) break; ///// debug
+		if (cnt > 2000) break; ///// debug
 		//if (queue.size() > 1000) break; ///// debug
 	}
 
@@ -140,10 +147,11 @@ vector<command_t> create_move_commands(const vector<Vec3>& path)
 	vector<Vec3> vs;
 	vector<command_t> cmds;
 
-	cerr << path.size() << endl; ///// debug
-	//cerr << path[0] << endl; ///// debug
+#ifdef DEBUG_PRINT
+	cerr << "path: " << path.size() << " : "; /// debug
 	for (const auto& pos : path) cerr << pos << "-"; /// debug
 	cerr << endl; ///// debug
+#endif
 	if (path.size() <= 1) return cmds;
 
 	for (int i = 0; i < static_cast<int>(path.size()) - 1; i++) {
@@ -203,11 +211,8 @@ int execute(State& s, int idx, const vector<command_t>& cmds)
 	for (const auto& cmd : cmds) {
 		string c = cmd.first;
 		vector<int> args = cmd.second;
-		//cerr << c << ", " << args.size() << endl; ///// debug
-		//cerr << Vec3{args[0], args[1], args[2]} << endl; ///// debug
-		//cerr << idx << ", " << s.bots(idx).pos() << endl; ///// debug
 		if (c == "smove") {
-			cerr << Vec3{args[0], args[1], args[2]} << endl; ///// debug
+			//cerr << Vec3{args[0], args[1], args[2]} << endl; ///// debug
 			s.bots(idx).smove(Vec3{args[0], args[1], args[2]});
 		} else if (c == "fill") {
 			s.bots(idx).fill(Vec3{args[0], args[1], args[2]});
@@ -229,6 +234,7 @@ int execute(State& s, int idx, const vector<command_t>& cmds)
 bool is_grounded(const VoxelGrid& mat, int x, int y, int z)
 {
 	if (y == 0) return true;
+
 	for (int i = -1; i <= 1; i++) {
 		for (int j = -1; j <= 1; j++) {
 			for (int k = -1; k <= 1; k++) {
@@ -272,50 +278,67 @@ public:
 		}
 	}
 
-	void wave(int nx, int nz) {
-		int offset_x = R / nx;
-		int offset_z = R / nz;
-		int idx = 0;
-		for (int i = 0; i < nx; i++) {
-			for (int j = 0; j < nz; j++) {
-				//int idx = i * nz + j;
-				if (idx == 0) {
-					idx++;
-					continue;
-				}
-				if (idx >= agents.size()) continue;
-				//agents[idx].pos = Vec3{offset_x * i, 0, offset_z * j};
-				//astar.set_volatile_map(agents[idx].pos);
-				cerr << "check: " << Vec3{offset_x * i, 1, offset_z * j} << endl; ///// debug
-				astar.set(Vec3{0, 1, 0}, Vec3{offset_x * i, 1, offset_z * j});
-				vector<Vec3> path = astar.search();
-				cerr << "npath: " << path.size() << endl; //// debug
-				s.bots(0).fission(Vec3{0, 1, 0}, 0);
-				s.commit();
-				vector<command_t> cmds = create_move_commands(path);
-				::execute(s, idx, cmds);
-				cerr << "pos of bot: " << idx << ", " << s.bots(idx).pos() << endl; ///// debug
-				cerr << "num of bots: " << s.num_bots() << endl; ///// debug
-				astar.set_volatile_map(s.bots(idx).pos());
-				idx++;
+	void wave() {
+		for (int i = 1; i < get_size(); i++) {
+			int man_idx = i / 10;
+			int home_y = i % 10;
+			int home_x = 0;
+			int home_z = 0;
+			switch (man_idx) {
+			case 0:
+				home_x = 0;
+				home_z = 0;
+				break;
+			case 1:
+				home_x = R - 1;
+				home_z = 0;
+				break;
+			case 2:
+				home_x = 0;
+				home_z = R - 1;
+				break;
+			case 3:
+				home_x = R - 1;
+				home_z = R - 1;
+				break;
+			default:
+				break;
 			}
+
+			for (int j = 0; j < i; j++)
+				astar.set_volatile_map(s.bots(j).pos());
+			astar.set(Vec3{1, 0, 0}, Vec3{home_x, home_y, home_z});
+			vector<Vec3> path = astar.search();
+			//cerr << "npath: " << path.size() << endl; //// debug
+			s.bots(0).fission(Vec3{1, 0, 0}, 0);
+			s.commit();
+			vector<command_t> cmds = create_move_commands(path);
+			::execute(s, i, cmds);
+#ifdef DEBUG_PRINT
+			cerr << "pos of bot: " << i << ", " << s.bots(i).pos() << endl; ///// debug
+			//cerr << "num of bots: " << s.num_bots() << endl; ///// debug
+#endif
+			astar.set_volatile_map(s.bots(i).pos());
 		}
 	}
-
+	
 	void gather() {
-		cerr << "gather" << endl; ///// debug
+#ifdef DEBUG_PRINT
+		cerr << "manager.gather" << endl; ///// debug
+#endif
 		//for (int i = 1; i < get_size(); i++) {
 		while (s.num_bots() > 1) {
-#if 1
 			for (int j = 2; j < s.num_bots(); j++)
 				astar.set_volatile_map(s.bots(j).pos());
-#endif
 			//cerr << s.bots(1).pos() << endl; ///// debug
 			astar.set(s.bots(1).pos(), Vec3{0, 1, 0});
+			astar.set_volatile_map(Vec3{0, 0, 0});
 			vector<Vec3> path = astar.search();
 			vector<command_t> cmds = create_move_commands(path);
 			::execute(s, 1, cmds);
-			cerr << "bots(0).pos: " << s.bots(0).pos() << endl; ///// debug
+#ifdef DEBUG_PRINT
+			cerr << "bots(0).pos in gather: " << s.bots(0).pos() << endl; ///// debug
+#endif
 			s.bots(0).fusion_p(Vec3{0, 1, 0});
 			s.bots(1).fusion_s(Vec3{0, -1, 0});
 			s.commit();
@@ -333,7 +356,9 @@ public:
 	}
 
 	int execute() {
+#ifdef DEBUG_PRINT
 		cerr << "manager.execute" << endl; ///// debug
+#endif
 		bool changed = false;
 		do {
 			changed = false;
@@ -383,13 +408,14 @@ public:
 int solver(VoxelGrid& v, const string& out_trace)
 {
 	int R = v.r();
-	cout << "R: " << R << endl;
+	cerr << "Start solver: R=" << R << ", bots=" << NBOTS << ", voxels/bot=" << VOXELS_PER_BOT << endl; ///
 
 	State s(R, 40);
 	AStar astar(s);
 
 	BotManager manager(NBOTS, v, s, astar);
-	manager.wave(NROWS, NCOLS);
+	//manager.wave(NROWS, NCOLS);
+	manager.wave();
 
 	vector<command_t> all_cmds{};
 
@@ -433,19 +459,58 @@ int solver(VoxelGrid& v, const string& out_trace)
 					//random_shuffle(target_voxels.begin(), target_voxels.end());
 					//for (const Vec3& target : target_voxels) {
 					int nbots = manager.get_size();
+					vector<Vec3> path;
 					while (!target_voxels.empty()) {
 						vector<int> removed_items;
 						int offset_size = (target_voxels.size() - 1) / nbots + 1;
+						int removed_cells = 0;
 						for (int i = 0; i < offset_size; i++) {
 							for (int n = 0; n < nbots; n++) {
 								if (i + offset_size * n >= target_voxels.size()) continue;
+								if (target_voxels.size() - removed_cells <= manager.get_current() * VOXELS_PER_BOT) {
+									cmds.clear();
+									//cmds.push_back(make_pair("wait", vector<int>{}));
+									int man_idx = manager.get_current() / 10;
+									int home_y = manager.get_current() % 10;
+									int home_x = 0;
+									int home_z = 0;
+									switch (man_idx) {
+									case 0:
+										home_x = 0;
+										home_z = 0;
+										break;
+									case 1:
+										home_x = R - 1;
+										home_z = 0;
+										break;
+									case 2:
+										home_x = 0;
+										home_z = R - 1;
+										break;
+									case 3:
+										home_x = R - 1;
+										home_z = R - 1;
+										break;
+									default:
+										break;
+									}
+									astar.set(s.bots(manager.get_current()).pos(), Vec3{home_x, home_y, home_z});
+									path = astar.search();
+									for (const auto& pos : path) astar.set_volatile_map(pos);
+									for (int k = 0; k < manager.get_size(); k++) astar.set_volatile_map(s.bots(k).pos());
+									cmds = create_move_commands(path);
+									manager.push(cmds);
+									continue;
+								}
 								const Vec3& target = target_voxels[i + offset_size * n];
-								cerr << "Loc: " << target << endl; ///// debug
+#ifdef DEBUG_PRINT
+								cerr << "target: " << target << endl; ///// debug
+#endif
 								astar.set(s.bots(manager.get_current()).pos(), target + Vec3{0, rev, 0});
-								//astar.set(s.bots(n).pos(), target + Vec3{0, 1, 0});
-								cerr << "current_pos: " << manager.get_current() << endl; ///// debug
-								//cerr << "current_pos: " << n << endl; ///// debug
-								vector<Vec3> path = astar.search();
+#ifdef DEBUG_PRINT
+								cerr << "bot index: " << manager.get_current() << endl; ///// debug
+#endif
+								path = astar.search();
 								if (target + Vec3(0, rev, 0) != path.back()) {
 									cmds.clear();
 									cmds.push_back(make_pair("wait", vector<int>{}));
@@ -454,35 +519,40 @@ int solver(VoxelGrid& v, const string& out_trace)
 										cerr << "Error: all bots waited" << endl;
 										exit(1);
 									}
-									//astar.set(s.bots(manager.get_current()).pos(), Vec3{0, 0, 0});
-									//path = astar.search();
-									//cmds = create_move_commands(path);
-									//cerr << "wait" << endl; ///// debutg
-									//for (const auto& pos : path) cerr << pos << "-"; ///// debug
-									//cerr << endl; //// debug
-									//cmds.push_back(make_pair("smove", vector<int>{0, R - 1 - s.bots(manager.get_current()).pos().y, 0}));
 								} else {
-									for (const auto& pos : path) astar.set_volatile_map(pos);
-									astar.set_volatile_map(path.back() - Vec3{0, rev, 0});
-									cmds = create_move_commands(path);
-									cmds.push_back(make_pair("fill", vector<int>{0, -rev, 0}));
-									v(target.z, target.y, target.x) = 0;
-									changed = true;
-									removed_items.push_back(i + offset_size * n);
-									waited_bots.clear();
+									const vector<Vec3>& volatile_map(astar.get_volatile_map());
+									if (find(volatile_map.begin(), volatile_map.end(), path.back() - Vec3{0, rev, 0}) != volatile_map.end()) {
+										cmds.clear();
+										cmds.push_back(make_pair("wait", vector<int>{}));
+										waited_bots.push_back(manager.get_current());
+									} else {
+										for (const auto& pos : path) astar.set_volatile_map(pos);
+										astar.set_volatile_map(path.back() - Vec3{0, rev, 0});
+										cmds = create_move_commands(path);
+										cmds.push_back(make_pair("fill", vector<int>{0, -rev, 0}));
+										v(target.z, target.y, target.x) = 0;
+										changed = true;
+										removed_items.push_back(i + offset_size * n);
+										waited_bots.clear();
+										removed_cells++;
+//#ifdef DEBUG_PRINT
+										cerr << "filled voxel: " << path.back() - Vec3{0, rev, 0} << endl; ///// debug
+//#endif
+									}
 								}
 								int ret = manager.push(cmds);
 								all_cmds.insert(all_cmds.end(), cmds.begin(), cmds.end());
 							}
 						}
 						sort(removed_items.begin(), removed_items.end());
-						//reverse(removed_items.begin(), removed_items.end());
 						for (auto p = removed_items.rbegin(); p != removed_items.rend(); ++p) {
 							target_voxels.erase(target_voxels.begin() + *p);
 						}
 					}
 					manager.execute();
-					cerr << target_voxels.size() << ", " << rev << ", " << num_ungrounded_cell << ", " << prev_num_ungrounded_cell << endl; ///// debug
+#ifdef DEBUG_PRINT
+					cerr << "rev, nvoxcles, ungrounded: " << rev << ", " << target_voxels.size() << ", " << num_ungrounded_cell << ", " << prev_num_ungrounded_cell << endl; ///// debug
+#endif
 					//astar.clear_volatile_map();
 					//for (int i = 0; i < s.num_bots(); i++) astar.set_volatile_map(s.bots(i).pos());
 					if (num_ungrounded_cell > 0 && num_ungrounded_cell == prev_num_ungrounded_cell)
@@ -495,7 +565,6 @@ int solver(VoxelGrid& v, const string& out_trace)
 	} while (need_loop);
 	//} while (need_loop && changed);
 	
-	//astar.set(pos, Vec3{0, 0, 0});
 	astar.set(s.bots(0).pos(), Vec3{0, 0, 0});
 	vector<Vec3> path = astar.search();
 	cmds = create_move_commands(path);
@@ -503,27 +572,23 @@ int solver(VoxelGrid& v, const string& out_trace)
 	cmds.push_back(make_pair("flip", vector<int>{}));
 #endif
 	execute(s, 0, cmds);
+#ifdef DEBUG_PRINT
 	cerr << "final position: " << s.bots(0).pos() << ", " << s.bots(0).bid() << endl; //// debug
+#endif
 	manager.gather();
 	cmds.clear();
 	cmds.push_back(make_pair("halt", vector<int>{}));
 	execute(s, 0, cmds);
 	all_cmds.insert(all_cmds.end(), cmds.begin(), cmds.end());
 	//for (const auto& cmd : all_cmds) cerr << cmd.first << endl; ///// debug
+#ifdef DEBUG_PRINT
 	cerr << "commands: " << all_cmds.size() << endl; ///// debug
-
-#if 0
-	for (int y = 0; y < R; y++) {
-		for (int x = 1; x < R; x++) {
-			for (int z = 1; z < R; z++) {
-				if (v(z, y, x) == 1) cerr << "BLOCK: " << x << ", " << y << ", " << z << endl;
-			}
-		}
-	}
 #endif
 
-	s.export_trace(out_trace + ".nbt");
+	s.export_trace(out_trace);
 
+	cerr << "Finished" << endl; ///
+	
 	return 0;
 }
 
