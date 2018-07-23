@@ -109,7 +109,7 @@ public:
 
 	const set<Vec3>& getLeaves()const{ return leaves;}
 
-	void eraseLeaf(Vec3 leaf){
+	void eraseLeaf(const Vec3 &leaf){
 		assert(leaves.count(leaf));
 		Vec3 par=parent[leaf];
 		tree[par].erase(leaf);
@@ -125,7 +125,7 @@ struct PosData{
 };
 
 
-int mlen(Vec3 a, Vec3 b){
+int mlen(const Vec3 &a, const Vec3 &b){
 	return abs(a.x-b.x) + abs(a.y-b.y) + abs(a.z-b.z);
 }
 
