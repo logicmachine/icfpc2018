@@ -72,14 +72,18 @@ public:
 	int distance(const vector<Vec3>& path) {
 		return path.size();
 	}
-	int set_volatile_map(int x, int y, int z) {
+	void set_volatile_map(int x, int y, int z) {
 		volatile_map.push_back(Vec3{x, y, z});
 	}
-	int set_volatile_map(const Vec3& v) {
+	void set_volatile_map(const Vec3& v) {
 		volatile_map.push_back(v);
 	}
 	const vector<Vec3>& get_volatile_map() const {
 		return volatile_map;
+	}
+	void remove_volatile_map(int x, int y, int z) {
+		auto p = find(volatile_map.begin(), volatile_map.end(), Vec3{x, y, z});
+		if (p != volatile_map.end()) volatile_map.erase(p);
 	}
 	int clear_volatile_map() {
 		volatile_map.clear();
