@@ -338,8 +338,8 @@ int main(int argc, char* argv[]){
 	int R = vox.r();
 	// SEARCH_TIMES = max(SEARCH_TIMES, R/30);
 	int N = min(40, max((R-1)/3*3+1,4));
-	cout<<"R: "<<R<<endl;
-	cout<<"N: "<<N<<endl;
+	// cout<<"R: "<<R<<endl;
+	// cout<<"N: "<<N<<endl;
 
 	State s(vox, N);
 
@@ -377,7 +377,7 @@ int main(int argc, char* argv[]){
 	bool emer = false;
 	while(graph.getLeaves().size()){
 		vector<string> results(s.num_bots());
-		cout<<turn++<<" "<<graph.getLeaves().size()<<endl;
+		// cout<<turn++<<" "<<graph.getLeaves().size()<<endl;
 		// if(score.size()>=20)score.pop_front();
 		// score.push_back(graph.getLeaves().size());
 		// if(score.size()==20 && score.front()==score.back())break;
