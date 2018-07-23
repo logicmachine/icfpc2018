@@ -37,6 +37,8 @@ class ConfigReader:
         self.visualizer = self.convert_to_bool(self.visualizer)
         self.problem_dir = inifile.get('Global', 'problem_dir')
         self.nbt_dir = inifile.get('Global', 'nbt_dir')
+        self.output_dir = inifile.get('Global', 'output_dir')
+        self.output_csv_name = inifile.get('Global', 'output_csv_name')
 
         # read FA
         self.FA_solve = self.convert_to_bool(inifile.get('FA','FA_solve'))
@@ -215,6 +217,10 @@ class PageConfig:
             self.tgtModelEmpty.click()
 
     def exec_trace(self):
+        while True:
+            if self.execTrace.is_enabled():
+                break
+            sleep(1)
         self.execTrace.click()
 
     def set_problem_class(self, config_str):
@@ -250,6 +256,9 @@ class PageConfig:
         txt = self.stdout.text
         return txt.find("Success") != -1 or txt.find("Failure") != -1
 
+    def dump_result(self):
+        print(self.stdout.text)
+
     def camera_iikanji(self):
         if self.vis :
             for j in range(0, 15):
@@ -271,11 +280,12 @@ kProblemDir = config_reader.problem_dir
 kNBTDir = config_reader.nbt_dir
 
 
-f = open("result.csv", 'w')
-writer = csv.writer(f, lineterminator='\n')
-writer.writerow(["FA/FD/FR", "Case No", "status", "time", "commands", "energy"])
 
 page = PageConfig(config_reader)
+
+f = open(config_reader.output_dir + page.path_char + config_reader.output_csv_name, 'w')
+writer = csv.writer(f, lineterminator='\n')
+writer.writerow(["FA/FD/FR", "Case No", "status", "time", "commands", "energy"])
 
 queries = ["FA", "FD", "FR"]
 tgt_or_src = [["tgt"],["src"],["tgt", "src"]]
@@ -305,7 +315,8 @@ for q in range(0, 3):
         continue
     r = rangies[q]
     problem_class = queries[q]
-    for i in range(r[0], r[1]+1):
+    step = 1 if r[0] <= r[1] else -1
+    for i in range(r[0], r[1]+1, step ):
         try: 
             problem_num_str = "{:03d}".format(i)
             print(problem_class)
@@ -320,6 +331,7 @@ for q in range(0, 3):
                 sleep(1)
 
             result = page.get_result()
+            page.dump_result()
             print("Status: {}, time: {}, commands: {}, energy: {}".format(result.status, result.time, result.commands, result.energy))
             writer.writerow([problem_class, problem_class + problem_num_str, result.status, result.time, result.commands,result.energy])
         except Exception:
