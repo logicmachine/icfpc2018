@@ -56,6 +56,33 @@ void collect_nanobots_y(State& s){
 	}
 }
 
+void collect_nanobots_y_inv(State& s){
+	const int n = s.matrix().size();
+	while(true){
+		bool done_flag = true;
+		for(int i = 0; i < s.num_bots(); ++i){
+			const auto p = s.bots(i).pos();
+			if(p.y < n - 1){ done_flag = false; }
+		}
+		if(done_flag){ break; }
+		InterferenceChecker initial_ic(s);
+		InterferenceChecker move_ic(s);
+		for(int i = 0; i < s.num_bots(); ++i){
+			const auto p = s.bots(i).pos();
+			if(p.y == 0 && !initial_ic.test(Vec3(p.x, n - 2, p.z))){
+				s.bots(i).fusion_p(Vec3(0, -1, 0));
+			}else if(p.y == 1 && !initial_ic.test(Vec3(p.x, n - 1, p.z))){
+				s.bots(i).fusion_s(Vec3(0,  1, 0));
+			}else{
+				int target = p.y;
+				while(target < n - 1 && move_ic.set(Vec3(p.x, target + 1, p.z))){ ++target; }
+				s.bots(i).smove(Vec3(0, std::min(target - p.y, MAX_LONG_DISTANCE), 0));
+			}
+		}
+		s.commit();
+	}
+}
+
 void collect_nanobots_z(State& s){
 	while(true){
 		bool done_flag = true;

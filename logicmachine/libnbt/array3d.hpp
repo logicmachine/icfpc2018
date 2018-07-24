@@ -3,8 +3,6 @@
 
 #include <vector>
 
-namespace libnbt {
-
 template <typename T>
 class Array3D {
 
@@ -32,7 +30,12 @@ public:
 		return m_data[z * m * k + y * k + x];
 	}
 
-};
+	const value_type& operator()(const Vec3& v) const {
+		return (*this)(v.z, v.y, v.x);
+	}
+	value_type& operator()(const Vec3& v){
+		return (*this)(v.z, v.y, v.x);
+	}
 
 };
 
