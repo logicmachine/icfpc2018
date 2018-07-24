@@ -274,7 +274,7 @@ bool test_fillable(const Array3D<uint8_t>& matrix, const Vec3 p){
 	return false;
 }
 
-vector<pair<Vec3, bool>> build_block_command_sequence(
+vector<tuple<Vec3, Vec3, bool>> build_block_command_sequence(
 	const Array3D<uint8_t>& bone,
 	const Array3D<uint8_t>& model,
 	const Vec2& partition_origin,
@@ -417,7 +417,27 @@ vector<pair<Vec3, bool>> build_block_command_sequence(
 		cur += t;
 		sequence.emplace_back(t, false);
 	}
-	return sequence;
+	vector<tuple<Vec3, Vec3, bool>> opt_sequence;
+	{	// post-optimization (smove x2 -> lmove)
+		auto test_length = [](const Vec3& v){ return v.mlen() <= MAX_SHORT_DISTANCE; };
+		Vec3 cur = local_init;
+		for(int i = 0; i < sequence.size(); ++i){
+			opt_sequence.emplace_back(sequence[i].first, Vec3(), sequence[i].second);
+			if(!sequence[i].second){ cur += sequence[i].first; }
+			if(i + 1 >= sequence.size()){ continue; }
+			if(sequence[i].second){ continue; }
+			if(sequence[i + 1].second){ continue; }
+			if(!test_length(sequence[i].first)){ continue; }
+			if(!test_length(sequence[i + 1].first)){ continue; }
+			if(cur.y >= local_init.y){ continue; }
+			if(cur.y + sequence[i + 1].first.y >= local_init.y){ continue; }
+			opt_sequence.pop_back();
+			opt_sequence.emplace_back(sequence[i].first, sequence[i + 1].first, false);
+			cur += sequence[i + 1].first;
+			++i;
+		}
+	}
+	return opt_sequence;
 }
 
 
@@ -428,7 +448,11 @@ int main(int argc, char *argv[]){
 
 	const int n = model.size();
 	const Vec2 n2(n, n);
-	const Vec2 partition_size(8, 8);
+
+	const int psize = max(3, n / 20);
+	const Vec2 partition_size(psize, psize);
+
+	cerr << "R = " << n << ", psize = " << psize << endl;
 
 	Array3D<uint8_t> a3model(model.size(), model.size(), model.size());
 	int ceil_y = 0;
@@ -481,16 +505,30 @@ int main(int argc, char *argv[]){
 	}
 
 	// enumerate partitions
-	unordered_set<Vec2> partitions;
+	using command_sequence_type = vector<tuple<Vec3, Vec3, bool>>;
+	unordered_map<Vec2, command_sequence_type> all_partitions;
 	for(int z0 = 0; z0 < n; z0 += partition_size.y){
 		for(int x0 = 0; x0 < n; x0 += partition_size.x){
 			const int x1 = min(n - 1, x0 + partition_size.x - 1);
 			const int z1 = min(n - 1, z0 + partition_size.y - 1);
+			const Vec3 p3(x0, ceil_y, z0);
+			const Vec2 p2(x0, z0);
 			if(model.test(Vec3(x0, 0, z0), Vec3(x1, n - 1, z1))){
-				partitions.emplace(x0, z0);
+				cerr << "compute partition " << p2 << endl;
+				auto q = build_block_command_sequence(
+					bone, a3model, p2, partition_size, p3);
+				cerr << "  sequence length = " << q.size() << endl;
+				reverse(q.begin(), q.end());
+				all_partitions.emplace(p2, move(q));
 			}
 		}
 	}
+	vector<pair<int, Vec2>> partition_order;
+	for(const auto& p : all_partitions){
+		partition_order.emplace_back(p.second.size(), p.first);
+	}
+	sort(partition_order.begin(), partition_order.end());
+	unordered_set<Vec2> partitions;
 
 	{	// move bot0 to (n/2, ceil_y, n/2)
 		const auto trace = bot0_moveto(s, Vec3(n / 2, ceil_y, n / 2));
@@ -532,17 +570,31 @@ int main(int argc, char *argv[]){
 	}
 
 	const int nbots = s.num_bots();
-	vector<vector<pair<Vec3, bool>>> queues(nbots);
+	vector<command_sequence_type> queues(nbots);
 	while(true){
 		Array2D<uint8_t> ceil_obstacles(n, n);
 
-		bool done_all = partitions.empty();
+		bool done_all = partitions.empty() && partition_order.empty();
+		int waiting_count = 0;
 		for(int i = 0; i < nbots; ++i){
 			const auto p3 = s.bots(i).pos();
-			if(!queues[i].empty()){ done_all = false; }
-			if(p3.y == ceil_y){ ceil_obstacles(p3.z, p3.x) = true; }
+			if(queues[i].empty()){
+				++waiting_count;
+			}else{
+				done_all = false;
+			}
+			if(p3.y == ceil_y){
+				ceil_obstacles(p3.z, p3.x) = true;
+			}
 		}
 		if(done_all){ break; }
+
+		// append partition candidates
+		while(!partition_order.empty() && partitions.size() < waiting_count){
+			const auto k = partition_order.back().second;
+			partition_order.pop_back();
+			partitions.insert(k);
+		}
 
 		// assign new blocks
 		for(int i = 0; i < nbots; ++i){
@@ -550,11 +602,7 @@ int main(int argc, char *argv[]){
 			if(!queues[i].empty() || p3.y != ceil_y){ continue; }
 			const Vec2 p2(p3.x, p3.z);
 			if(partitions.find(p2) != partitions.end()){
-				cerr << "compute partition " << p2 << " => " << s.bots(i).bid() << endl;
-				queues[i] = build_block_command_sequence(
-					bone, a3model, p2, partition_size, p3);
-				cerr << "  sequence length = " << queues[i].size() << endl;
-				reverse(queues[i].begin(), queues[i].end());
+				queues[i] = all_partitions[p2];
 				partitions.erase(p2);
 			}
 		}
@@ -565,11 +613,11 @@ int main(int argc, char *argv[]){
 			if(queues[i].empty()){ continue; }
 			const auto p3 = s.bots(i).pos();
 			const auto c = queues[i].back();
-			if(c.second){
-				s.bots(i).fill(c.first);
+			if(get<2>(c)){
+				s.bots(i).fill(get<0>(c));
 				queue_pop[i] = true;
 			}else{
-				const auto d = c.first;
+				const auto d = get<0>(c);
 				bool valid = true;
 				if(p3.y == ceil_y){
 					if(d.x < 0){
@@ -593,13 +641,20 @@ int main(int argc, char *argv[]){
 							ceil_obstacles(p3.z + i, p3.x) = 1;
 						}
 					}
-				}
-				if(p3.y + d.y == ceil_y){
-					ceil_obstacles(p3.z, p3.x) = 1;
+				}else if(p3.y + d.y == ceil_y){
+					if(ceil_obstacles(p3.z, p3.x)){
+						valid = false;
+					}else{
+						ceil_obstacles(p3.z, p3.x) = 1;
+					}
 				}
 				if(valid){ 
 					queue_pop[i] = valid;
-					s.bots(i).smove(d);
+					if(get<1>(c) != Vec3()){
+						s.bots(i).lmove(d, get<1>(c));
+					}else{
+						s.bots(i).smove(d);
+					}
 				}
 			}
 		}
@@ -642,7 +697,12 @@ int main(int argc, char *argv[]){
 			if(queue_pop[i]){ queues[i].pop_back(); }
 		}
 
+		try{
 		s.commit();
+		}catch(...){
+			s.dump_pending_commands(cerr);
+			throw;
+		}
 	}
 
 	collect_nanobots_y_inv(s);
