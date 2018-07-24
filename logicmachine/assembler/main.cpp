@@ -175,7 +175,7 @@ vector<Vec3> bot_moveto(const T& matrix, const Vec3& init, const Vec3& target){
 			}
 		}
 	}
-	assert(!pq.empty());
+	if(pq.empty()){ return {}; }
 	Vec3 cur = target;
 	vector<Vec3> trace;
 	while(cur != init){
@@ -255,12 +255,13 @@ bool test_fillable(const Array3D<uint8_t>& matrix, const Vec3 p){
 	if(p.y < 0 || matrix.rows()  <= p.y){ return false; }
 	if(p.z < 0 || matrix.depth() <= p.z){ return false; }
 	if(matrix(p)){ return false; }
-	const std::array<Vec3, 5> neighbors = {
+	const std::array<Vec3, 6> neighbors = {
 		Vec3( 0, -1,  0),
 		Vec3( 1,  0,  0),
 		Vec3( 0,  0,  1),
 		Vec3(-1,  0,  0),
-		Vec3( 0,  0, -1)
+		Vec3( 0,  0, -1),
+		Vec3( 0,  1,  0),
 	};
 	for(const auto d : neighbors){
 		const auto q = p + d;
@@ -296,49 +297,125 @@ vector<pair<Vec3, bool>> build_block_command_sequence(
 			}
 		}
 	}
-	Vec3 cur(
+	const Array3D<uint8_t> sub_bone = sub_matrix;
+
+	const Vec3 local_init(
 		start_position.x - partition_origin.x,
 		start_position.y,
 		start_position.z - partition_origin.y);
+	Vec3 cur = local_init;
 
 	for(int y = 1; y < height; ++y){
-		for(int iter = 0; iter < 2; ++iter){
-			for(int zz = 0; zz < sub_h; ++zz){
-				const int z = (iter == 0) ? zz : (sub_h - 1 - zz);
-				for(int xx = 0; xx < sub_w; ++xx){
-					const int x = ((z + iter) % 2 == 0) ? xx : (sub_w - xx - 1);
-					const Vec3 target(x, y, z);
-					if(sub_matrix(target)){ continue; }
-					const array<Vec3, 5> fillable = {
-						Vec3( 0, -1,  0),
-						Vec3( 1, -1,  0),
-						Vec3( 0, -1,  1),
-						Vec3(-1, -1,  0),
-						Vec3( 0, -1, -1)
-					};
-					bool is_target = false;
-					for(const auto nd : fillable){
-						const auto p = target + nd;
-						if(test_fillable(sub_matrix, p) && sub_model(p)){
-							is_target = true;
+		while(true){
+			bool has_update = true;
+			// fill plane
+			for(int iter = 0; iter % 2 != 0 || has_update; ++iter){
+				if(iter % 2 == 0){ has_update = false; }
+				for(int zz = 0; zz < sub_h; ++zz){
+					const int z = ((iter & 1) == 0) ? zz : (sub_h - 1 - zz);
+					for(int xx = 0; xx < sub_w; ++xx){
+						const int x = ((z + (iter & 1)) % 2 == 0) ? xx : (sub_w - xx - 1);
+						const Vec3 target(x, y, z);
+						if(sub_matrix(target)){ continue; }
+						const array<Vec3, 5> fillable = {
+							Vec3( 0, -1,  0),
+							Vec3( 1, -1,  0),
+							Vec3( 0, -1,  1),
+							Vec3(-1, -1,  0),
+							Vec3( 0, -1, -1)
+						};
+						bool is_target = false;
+						for(const auto nd : fillable){
+							const auto p = target + nd;
+							if(test_fillable(sub_matrix, p) && sub_model(p)){
+								is_target = true;
+							}
 						}
-					}
-					if(!is_target){ continue; }
-					const auto trace = bot_moveto(sub_matrix, cur, target);
-					for(const auto& t : trace){
-						cur += t;
-						sequence.emplace_back(t, false);
-					}
-					for(const auto nd : fillable){
-						const auto p = target + nd;
-						if(test_fillable(sub_matrix, p) && sub_model(p)){
-							sequence.emplace_back(nd, true);
-							sub_matrix(p) = true;
+						if(!is_target){ continue; }
+						const auto trace = bot_moveto(sub_matrix, cur, target);
+						for(const auto& t : trace){
+							cur += t;
+							sequence.emplace_back(t, false);
+						}
+						for(const auto nd : fillable){
+							const auto p = target + nd;
+							if(test_fillable(sub_matrix, p) && sub_model(p)){
+								sequence.emplace_back(nd, true);
+								sub_matrix(p) = true;
+								has_update = true;
+							}
 						}
 					}
 				}
 			}
+			// check completion
+			vector<Vec3> failed_voxels;
+			for(int z = 0; z < sub_h; ++z){
+				for(int x = 0; x < sub_w; ++x){
+					const Vec3 p(z, y - 1, x);
+					if(sub_model(p) && !sub_matrix(p)){
+						failed_voxels.push_back(p);
+					}
+				}
+			}
+			if(failed_voxels.empty()){ break; }
+			// revert
+			const int failed_y = failed_voxels.front().y;
+			cerr << "  revert: y = " << failed_y << ", n_failed = " << failed_voxels.size() << endl;
+			while(!sequence.empty()){
+				bool revert_completed = true;
+				for(int z = 0; z < sub_h; ++z){
+					for(int x = 0; x < sub_w; ++x){
+						if(sub_bone(z, failed_y, x)){ continue; }
+						if(sub_matrix(z, failed_y, x)){ revert_completed = false; }
+					}
+				}
+				if(revert_completed){ break; }
+				const auto c = sequence.back();
+				sequence.pop_back();
+				if(c.second){
+					sub_matrix(cur + c.first) = false;
+				}else{
+					cur -= c.first;
+				}
+			}
+			// filter failed voxels
+			vector<Vec3> filtered_failed_voxels;
+			for(const auto v : failed_voxels){
+				if(test_fillable(sub_matrix, v)){ 
+					filtered_failed_voxels.push_back(v);
+				}
+			}
+			// fill failed voxel from side
+			static const array<Vec3, 8> neighbors = {
+				Vec3(-1,  0, -1), Vec3( 0,  0, -1), Vec3( 1,  0, -1),
+				Vec3(-1,  0,  0),                   Vec3( 1,  0,  0),
+				Vec3(-1,  0,  1), Vec3( 0,  0,  1), Vec3( 1,  0,  1),
+			};
+			shuffle(filtered_failed_voxels.begin(), filtered_failed_voxels.end(), engine);
+			for(const auto failed_voxel : filtered_failed_voxels){
+				for(const auto nd : neighbors){
+					const auto target = failed_voxel + nd;
+					const auto trace = bot_moveto(sub_matrix, cur, target);
+					if(trace.empty() && cur != target){ continue; }
+					for(const auto& t : trace){
+						cur += t;
+						sequence.emplace_back(t, false);
+					}
+					sequence.emplace_back(-nd, true);
+					sub_matrix(target - nd) = true;
+					break;
+				}
+			}
+			for(const auto v : failed_voxels){
+				assert(sub_matrix(v));
+			}
 		}
+	}
+	const auto trace = bot_moveto(sub_matrix, cur, local_init);
+	for(const auto& t : trace){
+		cur += t;
+		sequence.emplace_back(t, false);
 	}
 	return sequence;
 }
@@ -351,7 +428,7 @@ int main(int argc, char *argv[]){
 
 	const int n = model.size();
 	const Vec2 n2(n, n);
-	const Vec2 partition_size(24, 24);
+	const Vec2 partition_size(8, 8);
 
 	Array3D<uint8_t> a3model(model.size(), model.size(), model.size());
 	int ceil_y = 0;
@@ -407,10 +484,10 @@ int main(int argc, char *argv[]){
 	unordered_set<Vec2> partitions;
 	for(int z0 = 0; z0 < n; z0 += partition_size.y){
 		for(int x0 = 0; x0 < n; x0 += partition_size.x){
-			const int x1 = min(n, x0 + partition_size.x - 1);
-			const int z1 = min(n, z0 + partition_size.y - 1);
+			const int x1 = min(n - 1, x0 + partition_size.x - 1);
+			const int z1 = min(n - 1, z0 + partition_size.y - 1);
 			if(model.test(Vec3(x0, 0, z0), Vec3(x1, n - 1, z1))){
-				partitions.emplace(z0, x0);
+				partitions.emplace(x0, z0);
 			}
 		}
 	}
@@ -473,12 +550,11 @@ int main(int argc, char *argv[]){
 			if(!queues[i].empty() || p3.y != ceil_y){ continue; }
 			const Vec2 p2(p3.x, p3.z);
 			if(partitions.find(p2) != partitions.end()){
+				cerr << "compute partition " << p2 << " => " << s.bots(i).bid() << endl;
 				queues[i] = build_block_command_sequence(
 					bone, a3model, p2, partition_size, p3);
+				cerr << "  sequence length = " << queues[i].size() << endl;
 				reverse(queues[i].begin(), queues[i].end());
-				cerr << "compute partition " << p2 << ": "
-				     << queues[i].size() << ", "
-					 << s.bots(i).bid() << endl;
 				partitions.erase(p2);
 			}
 		}
@@ -575,6 +651,7 @@ int main(int argc, char *argv[]){
 	collect_nanobots_y(s);
 
 	s.bots(0).halt();
+	s.dump_pending_commands(cerr);
 	s.commit();
 	cerr << "Energy: " << s.energy() << endl;
 
